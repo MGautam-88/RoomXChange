@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <rect width="64" height="64" rx="16" fill="#0b0d0c"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" stroke="#c9f31d" stroke-opacity="0.3" stroke-width="2"/>
+  <!-- Modern House / Room Icon -->
+  <path d="M32 12 L50 26 V48 C50 50.2 48.2 52 46 52 H18 C15.8 52 14 50.2 14 48 V26 Z" stroke="#c9f31d" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- Swap Arrows -->
+  <path d="M22 35 H40 M40 35 L34 29 M34 35" stroke="#5fd068" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M42 43 H24 M24 43 L30 49 M30 43" stroke="#c9f31d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

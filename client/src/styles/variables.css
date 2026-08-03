@@ -1,0 +1,32 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+:root {
+	--bg-0: #0b0d0c;
+	--bg-1: #121614;
+	--bg-2: #181d1a;
+	--surface: #131816;
+	--surface-hover: #1b211d;
+	--text-1: #f2f5f3;
+	--text-2: #a0aba5;
+	--accent: #c9f31d;
+	--status-ok: #5fd068;
+	--status-warn: #e3b341;
+	--status-bad: #f46d6d;
+	--border: rgba(255, 255, 255, 0.08);
+	--border-strong: rgba(255, 255, 255, 0.14);
+	--shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+	--radius-sm: 10px;
+	--radius-md: 14px;
+	--radius-pill: 999px;
+	--space-4: 4px;
+	--space-8: 8px;
+	--space-12: 12px;
+	--space-16: 16px;
+	--space-24: 24px;
+	--space-32: 32px;
+	--space-48: 48px;
+	--font-sans: "Inter", system-ui, sans-serif;
+	--font-display: "Sora", var(--font-sans);
+	--font-mono: "IBM Plex Mono", ui-monospace, monospace;
+	color-scheme: dark;
+}
