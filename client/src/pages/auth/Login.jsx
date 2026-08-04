@@ -43,7 +43,7 @@ export default function Login() {
 					label="Roll Number"
 					type="text"
 					value={form.rollNumber}
-					onChange={(event) => setForm((current) => ({ ...current, rollNumber: event.target.value }))}
+					onChange={(event) => setForm((current) => ({ ...current, rollNumber: event.target.value.toLowerCase().trim() }))}
 					placeholder="23bcs001"
 					required
 				/>

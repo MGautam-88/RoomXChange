@@ -2,9 +2,7 @@ import { Route, Routes, useLocation } from "react-router-dom";
 import Home from "./pages/Home.jsx";
 import Login from "./pages/auth/Login.jsx";
 import Register from "./pages/auth/Register.jsx";
-import VerifyOtp from "./pages/auth/VerifyOtp.jsx";
 import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
-import ResetPassword from "./pages/auth/ResetPassword.jsx";
 import BrowseRooms from "./pages/rooms/BrowseRooms.jsx";
 import Preferences from "./pages/rooms/Preferences.jsx";
 import RoomDetail from "./pages/rooms/RoomDetail.jsx";
@@ -34,9 +32,7 @@ export default function AppRouter() {
 				<Route index element={<AnimatedPage><Home /></AnimatedPage>} />
 				<Route path="/login" element={<AnimatedPage><Login /></AnimatedPage>} />
 				<Route path="/register" element={<AnimatedPage><Register /></AnimatedPage>} />
-				<Route path="/verify-otp" element={<AnimatedPage><VerifyOtp /></AnimatedPage>} />
 				<Route path="/forgot-password" element={<AnimatedPage><ForgotPassword /></AnimatedPage>} />
-				<Route path="/reset-password" element={<AnimatedPage><ResetPassword /></AnimatedPage>} />
 			</Route>
 
 			<Route element={<ProtectedRoute />}>

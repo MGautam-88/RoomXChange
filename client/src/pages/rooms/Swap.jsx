@@ -20,6 +20,7 @@ export default function Swap() {
 			const { data } = await api.get("/swaps/suggestions");
 			setSuggestions(data.suggestions || []);
 		} catch (error) {
+			if (error.response?.status === 401 || error.response?.status === 404) return;
 			showToast(error.response?.data?.message || "Unable to load swap suggestions.", "error");
 		} finally {
 			setLoading(false);
@@ -27,25 +28,68 @@ export default function Swap() {
 	};
 
 	useEffect(() => {
-		loadSuggestions();
+		let isMounted = true;
+
+		const fetchInitial = async () => {
+			try {
+				const { data } = await api.get("/swaps/suggestions");
+				if (isMounted) {
+					setSuggestions(data.suggestions || []);
+				}
+			} catch (error) {
+				if (!isMounted) return;
+				if (error.response?.status === 401 || error.response?.status === 404) return;
+				showToast(error.response?.data?.message || "Unable to load swap suggestions.", "error");
+			} finally {
+				if (isMounted) {
+					setLoading(false);
+				}
+			}
+		};
+
+		fetchInitial();
+
+		return () => {
+			isMounted = false;
+		};
 	}, []);
 
-	const handleExecuteSwap = async (swap) => {
+	const handleAcceptProposal = async (swap) => {
 		setSubmitting(true);
 		try {
-			if (swap.requestIds && swap.requestIds.length >= 2) {
-				const response = await api.post("/swaps/cycles/execute", { requestIds: swap.requestIds });
-				showToast(response.data.message, "success");
-			} else {
-				showToast("Swap request sent to partner user successfully!", "success");
-			}
+			const { data } = await api.post(`/swaps/proposals/${swap.id}/accept`);
+			showToast(data.message, data.allAccepted ? "success" : "info");
 			setSelectedSwap(null);
 			await loadSuggestions();
 		} catch (error) {
-			showToast(error.response?.data?.message || "Unable to execute swap.", "error");
+			showToast(error.response?.data?.message || "Unable to accept swap proposal.", "error");
 		} finally {
 			setSubmitting(false);
 		}
+	};
+
+	const handleRejectProposal = async (swap) => {
+		setSubmitting(true);
+		try {
+			const { data } = await api.post(`/swaps/proposals/${swap.id}/reject`);
+			showToast(data.message, "info");
+			setSelectedSwap(null);
+			await loadSuggestions();
+		} catch (error) {
+			showToast(error.response?.data?.message || "Unable to reject swap proposal.", "error");
+		} finally {
+			setSubmitting(false);
+		}
+	};
+
+	const getStatusBadge = (status) => {
+		if (status === "accepted") {
+			return <span className="badge badge-ok" style={{ textTransform: "capitalize" }}>Accepted</span>;
+		}
+		if (status === "rejected") {
+			return <span className="badge badge-danger" style={{ textTransform: "capitalize" }}>Rejected</span>;
+		}
+		return <span className="badge badge-warn" style={{ textTransform: "capitalize" }}>Pending</span>;
 	};
 
 	return (
@@ -71,6 +115,7 @@ export default function Swap() {
 				<div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%" }}>
 					{suggestions.map((item, index) => {
 						const isTopItem = index === 0;
+						const isRejected = item.proposalStatus === "rejected";
 						return (
 							<article
 								key={item.id}
@@ -85,6 +130,7 @@ export default function Swap() {
 									gap: "24px",
 									padding: "20px 28px",
 									flexWrap: "wrap",
+									opacity: isRejected ? 0.75 : 1,
 								}}
 							>
 								<div style={{ display: "flex", alignItems: "center", gap: "24px", minWidth: "220px" }}>
@@ -101,13 +147,14 @@ export default function Swap() {
 									<span className="muted" style={{ fontSize: "0.92rem" }}>
 										{item.usersCount}-Way Swap Cycle
 									</span>
-									{isTopItem ? <span className="badge badge-ok">Top Pick</span> : null}
+									{isRejected ? (
+										<span className="badge badge-danger">Rejected (Expires in 24h)</span>
+									) : isTopItem ? (
+										<span className="badge badge-ok">Top Pick</span>
+									) : null}
 								</div>
 
 								<div style={{ display: "flex", alignItems: "center", gap: "16px", marginLeft: "auto" }}>
-									<small className="muted" style={{ display: "none", media: "(min-width: 640px)" }}>
-										Click to view mapping &rarr;
-									</small>
 									<Button type="button" variant="ghost" size="sm">
 										View Mapping
 									</Button>
@@ -127,7 +174,7 @@ export default function Swap() {
 			{/* Swap Mapping Modal */}
 			{selectedSwap ? (
 				<div className="modal-backdrop" onClick={() => setSelectedSwap(null)}>
-					<div className="modal-card profile-modal-card" style={{ width: "min(560px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+					<div className="modal-card profile-modal-card" style={{ width: "min(620px, 100%)" }} onClick={(e) => e.stopPropagation()}>
 						<div className="modal-header">
 							<div>
 								<p className="eyebrow">{selectedSwap.usersCount}-User Swap Chain</p>
@@ -140,7 +187,7 @@ export default function Swap() {
 
 						<div className="modal-body profile-modal-body">
 							<p className="muted" style={{ marginBottom: "14px" }}>
-								Below is the full mapping of all participating users and their room transfers after this swap:
+								Below is the full mapping of all participating users, their room transfers, and their individual confirmation statuses:
 							</p>
 
 							<div className="table-wrap surface">
@@ -150,6 +197,7 @@ export default function Swap() {
 											<th>User</th>
 											<th>Current Room</th>
 											<th>New Room</th>
+											<th>Status</th>
 										</tr>
 									</thead>
 									<tbody>
@@ -157,21 +205,62 @@ export default function Swap() {
 											<tr key={m.user.id}>
 												<td>
 													<strong>{m.user.name}</strong>
-													{m.user.id === user?.id ? <span className="badge badge-accent" style={{ marginLeft: "8px", fontSize: "0.75rem" }}>You</span> : null}
+													{m.user.id === user?.id ? (
+														<span className="badge badge-accent" style={{ marginLeft: "8px", fontSize: "0.75rem" }}>
+															You
+														</span>
+													) : null}
 												</td>
 												<td className="mono">{m.currentRoom}</td>
-												<td className="mono accent"><strong>{m.newRoom}</strong></td>
+												<td className="mono accent">
+													<strong>{m.newRoom}</strong>
+												</td>
+												<td>{getStatusBadge(m.status)}</td>
 											</tr>
 										))}
 									</tbody>
 								</table>
 							</div>
+
+							{selectedSwap.proposalStatus === "rejected" ? (
+								<p className="muted" style={{ color: "var(--color-danger)", marginTop: "12px", fontSize: "0.9rem" }}>
+									Note: A participant rejected this swap proposal. It will automatically expire and be removed after 24 hours.
+								</p>
+							) : null}
 						</div>
 
-						<div className="modal-footer profile-modal-footer">
-							<Button type="button" onClick={() => handleExecuteSwap(selectedSwap)} disabled={submitting} style={{ width: "100%" }}>
-								{submitting ? "Processing Swap..." : "Confirm & Execute Swap"}
-							</Button>
+						<div className="modal-footer profile-modal-footer" style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
+							{selectedSwap.proposalStatus === "completed" ? (
+								<Button type="button" variant="secondary" disabled style={{ width: "100%" }}>
+									Swap Executed & Completed
+								</Button>
+							) : (
+								<>
+									{selectedSwap.mappings.find((m) => m.user.id === user?.id)?.status === "accepted" ? (
+										<Button type="button" variant="secondary" disabled style={{ flex: 1 }}>
+											You Accepted (Waiting for others)
+										</Button>
+									) : (
+										<Button
+											type="button"
+											onClick={() => handleAcceptProposal(selectedSwap)}
+											disabled={submitting || selectedSwap.proposalStatus === "rejected"}
+											style={{ flex: 1 }}
+										>
+											{submitting ? "Processing..." : "Accept Swap"}
+										</Button>
+									)}
+
+									<Button
+										type="button"
+										variant="danger"
+										onClick={() => handleRejectProposal(selectedSwap)}
+										disabled={submitting || selectedSwap.proposalStatus === "rejected"}
+									>
+										{submitting ? "Processing..." : "Reject Swap"}
+									</Button>
+								</>
+							)}
 						</div>
 					</div>
 				</div>

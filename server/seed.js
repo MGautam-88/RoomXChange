@@ -4,7 +4,6 @@ import connectDB from "./config/db.js";
 import User from "./models/User.js";
 import Room from "./models/Room.js";
 import SwapRequest from "./models/SwapRequest.js";
-import Otp from "./models/Otp.js";
 import { deriveBlockAndFloor } from "./utils/roomHelpers.js";
 
 dotenv.config();
@@ -135,7 +134,6 @@ const seedDatabase = async () => {
     User.deleteMany({}),
     Room.deleteMany({}),
     SwapRequest.deleteMany({}),
-    Otp.deleteMany({}),
   ]);
 
   const hashedPassword = await bcrypt.hash("Pass@1234", 10);

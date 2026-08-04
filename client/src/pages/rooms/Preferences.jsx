@@ -188,15 +188,101 @@ export default function Preferences() {
 							<Input
 								label="Alloted Room Code"
 								value={form.allotedRoom}
-								onChange={(event) => setForm((current) => ({ ...current, allotedRoom: event.target.value }))}
+								onChange={(event) => {
+									const val = event.target.value;
+									if (!val) {
+										setForm((current) => ({ ...current, allotedRoom: "" }));
+										return;
+									}
+									const upper = val.toUpperCase().trim();
+									if (!/^[A-F]/.test(upper)) return;
+									const block = upper[0];
+									if (upper.length === 1) {
+										setForm((current) => ({ ...current, allotedRoom: block }));
+										return;
+									}
+									const floorChar = upper[1];
+									if (!/[1-4]/.test(floorChar)) {
+										setForm((current) => ({ ...current, allotedRoom: block }));
+										return;
+									}
+									if (upper.length === 2) {
+										setForm((current) => ({ ...current, allotedRoom: block + floorChar }));
+										return;
+									}
+									const d3 = upper[2];
+									if (!/[0-9]/.test(d3) || Number(d3) > 2) {
+										setForm((current) => ({ ...current, allotedRoom: block + floorChar }));
+										return;
+									}
+									if (upper.length === 3) {
+										setForm((current) => ({ ...current, allotedRoom: block + floorChar + d3 }));
+										return;
+									}
+									const d4 = upper[3];
+									if (!/[0-9]/.test(d4)) {
+										setForm((current) => ({ ...current, allotedRoom: block + floorChar + d3 }));
+										return;
+									}
+									const roomNum = Number(d3 + d4);
+									if (roomNum < 1 || roomNum > 25) {
+										setForm((current) => ({ ...current, allotedRoom: block + floorChar + d3 }));
+										return;
+									}
+									setForm((current) => ({ ...current, allotedRoom: block + floorChar + d3 + d4 }));
+								}}
 								placeholder="A101"
+								maxLength={4}
 								required
 							/>
 							<Input
 								label="Current Room Code"
 								value={form.currentRoom}
-								onChange={(event) => setForm((current) => ({ ...current, currentRoom: event.target.value }))}
+								onChange={(event) => {
+									const val = event.target.value;
+									if (!val) {
+										setForm((current) => ({ ...current, currentRoom: "" }));
+										return;
+									}
+									const upper = val.toUpperCase().trim();
+									if (!/^[A-F]/.test(upper)) return;
+									const block = upper[0];
+									if (upper.length === 1) {
+										setForm((current) => ({ ...current, currentRoom: block }));
+										return;
+									}
+									const floorChar = upper[1];
+									if (!/[1-4]/.test(floorChar)) {
+										setForm((current) => ({ ...current, currentRoom: block }));
+										return;
+									}
+									if (upper.length === 2) {
+										setForm((current) => ({ ...current, currentRoom: block + floorChar }));
+										return;
+									}
+									const d3 = upper[2];
+									if (!/[0-9]/.test(d3) || Number(d3) > 2) {
+										setForm((current) => ({ ...current, currentRoom: block + floorChar }));
+										return;
+									}
+									if (upper.length === 3) {
+										setForm((current) => ({ ...current, currentRoom: block + floorChar + d3 }));
+										return;
+									}
+									const d4 = upper[3];
+									if (!/[0-9]/.test(d4)) {
+										setForm((current) => ({ ...current, currentRoom: block + floorChar + d3 }));
+										return;
+									}
+									const roomNum = Number(d3 + d4);
+									if (roomNum < 1 || roomNum > 25) {
+										setForm((current) => ({ ...current, currentRoom: block + floorChar + d3 }));
+										return;
+									}
+									setForm((current) => ({ ...current, currentRoom: block + floorChar + d3 + d4 }));
+								}}
 								placeholder="A101"
+								maxLength={4}
 								required
 							/>
 						</div>

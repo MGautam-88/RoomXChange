@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import api from "../api/axios.js";
 
 const AuthContext = createContext(null);
@@ -27,6 +27,23 @@ export function AuthProvider({ children }) {
 		setSession({ token: null, user: null });
 		localStorage.removeItem(STORAGE_KEY);
 	};
+
+	// Silently sync user session with backend on initial load to purge stale session after DB re-seeding
+	useEffect(() => {
+		if (session.token) {
+			api.get("/auth/me")
+				.then(({ data }) => {
+					if (data?.user) {
+						persistSession({ token: session.token, user: data.user });
+					}
+				})
+				.catch((err) => {
+					if (err.response?.status === 401 || err.response?.status === 404) {
+						clearSession();
+					}
+				});
+		}
+	}, []);
 
 	const register = useCallback(async (payload) => (await api.post("/auth/register", payload)).data, []);
 	const verifyOtp = useCallback(async (payload) => {
