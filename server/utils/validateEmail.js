@@ -7,7 +7,7 @@ if (!ALLOWED_DOMAIN) {
 const escapedDomain = ALLOWED_DOMAIN.replace(/\./g, "\\.");
 
 const collegeEmailRegex = new RegExp(
-  `^\\d{2}b[a-z]{2}\\d{3}@${escapedDomain}$`,
+  `^23(bcs|bec|bsm|bme)\\d{3}@${escapedDomain}$`,
   "i"
 );
 

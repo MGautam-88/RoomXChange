@@ -33,7 +33,7 @@ export const sendRegisterOtp = async (req, res) => {
 		}
 
 		if (!isValidCollegeEmail(rawEmail)) {
-			return res.status(400).json({ message: "Please enter a valid roll number (e.g. 23bcs501)." });
+			return res.status(400).json({ message: "Please enter a valid roll number for batch 23 (e.g. 23bcs001; allowed branches: cse, ece, me, sm)." });
 		}
 
 		const cleanAlloted = (allotedRoom || "A101").trim().toUpperCase();
