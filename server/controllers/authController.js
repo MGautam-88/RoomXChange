@@ -56,8 +56,7 @@ export const sendRegisterOtp = async (req, res) => {
 		const result = await createAndSendOtpToken(rawEmail, "signup");
 		return res.json(result);
 	} catch (error) {
-		console.error("Error in sendRegisterOtp:", error);
-		return res.status(500).json({ message: error.message || "Failed to send registration OTP.", error: error.message });
+		return res.status(500).json({ message: "Failed to send registration OTP.", error: error.message });
 	}
 };
 
