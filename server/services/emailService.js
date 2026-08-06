@@ -12,8 +12,6 @@ const createTransporter = () =>
   });
 
 export const sendOtpEmail = async (toEmail, otp, purpose) => {
-  const transporter = createTransporter();
-
   const isSignup = purpose === "signup";
   const subject = isSignup
     ? `${otp} is your RoomXChange verification code`
@@ -30,7 +28,6 @@ export const sendOtpEmail = async (toEmail, otp, purpose) => {
         <title>RoomXChange Verification Code</title>
       </head>
       <body style="margin: 0; padding: 0; background-color: #0f1115; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
-        <!-- Preheader text for inbox preview -->
         <div style="display: none; max-height: 0px; overflow: hidden;">
           Your 4-digit RoomXChange verification code is ${otp}. Valid for 15 minutes.
         </div>
@@ -67,21 +64,36 @@ export const sendOtpEmail = async (toEmail, otp, purpose) => {
     </html>
   `;
 
-  await transporter.sendMail({
-    from: `"RoomXChange Security" <${process.env.EMAIL_USER}>`,
-    to: toEmail,
-    subject,
-    text: textContent,
-    html: htmlContent,
-    headers: {
-      "X-Priority": "1",
-      "X-MSMail-Priority": "High",
-      Importance: "High",
-    },
-  });
+  // Check if credentials exist
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.warn(`[OTP FALLBACK LOG] EMAIL_USER / EMAIL_PASS missing on server. Generated OTP for ${toEmail}: ${otp}`);
+    return;
+  }
+
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: `"RoomXChange Security" <${process.env.EMAIL_USER}>`,
+      to: toEmail,
+      subject,
+      text: textContent,
+      html: htmlContent,
+      headers: {
+        "X-Priority": "1",
+        "X-MSMail-Priority": "High",
+        Importance: "High",
+      },
+    });
+  } catch (error) {
+    console.error(`[SMTP ERROR] Failed to send email to ${toEmail}:`, error.message);
+    console.warn(`[OTP FALLBACK LOG] Generated OTP for ${toEmail}: ${otp}`);
+    throw new Error(`Email dispatch failed (${error.message}). Please verify EMAIL_USER & EMAIL_PASS in Render Environment Variables.`);
+  }
 };
 
 export const sendNoRoomsNotificationEmail = async (toEmail, userName) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
+
   try {
     const transporter = createTransporter();
     const subject = "RoomXChange — Update on your room swap preferences";
