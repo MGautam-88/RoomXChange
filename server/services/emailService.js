@@ -5,20 +5,13 @@ const createTransporter = () => {
   const port = Number(process.env.EMAIL_PORT) || 465;
   const isGmail = !host || host.includes("gmail");
 
-  if (isGmail) {
-    return nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-  }
-
   return nodemailer.createTransport({
-    host: host,
-    port: port,
-    secure: port === 465,
+    host: isGmail ? "smtp.gmail.com" : host,
+    port: isGmail ? 465 : port,
+    secure: isGmail ? true : port === 465,
+    connectionTimeout: 5000, // 5 seconds max connection timeout (prevents 2-3 min hanging)
+    greetingTimeout: 5000,
+    socketTimeout: 8000,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
