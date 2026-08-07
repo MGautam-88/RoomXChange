@@ -18,6 +18,11 @@ const createTransporter = () => {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
+    logger: true,
+    debug: true,
   });
 };
 
@@ -84,8 +89,15 @@ export const sendOtpEmail = async (toEmail, otp, purpose) => {
 
   try {
     console.log("Verifying SMTP connection...");
-    await transporter.verify();
-    console.log("SMTP verification successful ✅");
+
+    try {
+      await transporter.verify();
+      console.log("SMTP verification successful ✅");
+    } catch (err) {
+      console.error("verify() failed");
+      console.error(err);
+      throw err;
+    }
 
     console.log("Sending OTP email...");
 
