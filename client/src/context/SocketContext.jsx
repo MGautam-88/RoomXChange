@@ -30,16 +30,26 @@ export function SocketProvider({ children }) {
 	}, []);
 
 	useEffect(() => {
-		if (!ready) return undefined;
+		if (!ready || !token || !user) return undefined;
 		const socketUrl = (import.meta.env.VITE_API_URL || "http://localhost:5500/api").replace(/\/api$/, "");
-		const client = io(socketUrl, { transports: ["websocket"], auth: { token, userId: user?.id } });
+		const client = io(socketUrl, {
+			transports: ["websocket", "polling"],
+			reconnectionAttempts: 3,
+			reconnectionDelay: 3000,
+			auth: { token, userId: user?.id },
+		});
+
 		client.on("connect", () => setSocket(client));
+		client.on("connect_error", () => {
+			// Quietly handle connection errors on serverless/unsupported environments
+		});
 		client.on("rooms:available-count", ({ count }) => setAvailableCount(count));
 		client.on("notification", (payload) => {
 			setNotifications((current) => [{ id: crypto.randomUUID(), read: false, createdAt: new Date().toISOString(), ...payload }, ...current]);
 		});
+
 		return () => client.disconnect();
-	}, [ready, token, user?.id]);
+	}, [ready, token, user]);
 
 	const markAllNotificationsRead = () => setNotifications((current) => current.map((item) => ({ ...item, read: true })));
 
