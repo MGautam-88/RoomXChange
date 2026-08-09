@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../api/axios.js";
 import Badge from "../../components/common/Badge.jsx";
+import Button from "../../components/common/Button.jsx";
 import EmptyState from "../../components/common/EmptyState.jsx";
 import Skeleton from "../../components/common/Skeleton.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
@@ -11,23 +12,80 @@ const barWidth = (value, total) => `${total ? Math.max((value / total) * 100, 6)
 export default function AdminDashboard() {
 	const { user } = useAuth();
 	const showToast = useToast();
-	const [data, setData] = useState({ users: [], rooms: [], swaps: [], analytics: null });
+	const [activeTab, setActiveTab] = useState("overview");
+	const [data, setData] = useState({ users: [], rooms: [], swaps: [], reports: [], analytics: null });
 	const [loading, setLoading] = useState(true);
+	const [userSearch, setUserSearch] = useState("");
+	const [reportFilter, setReportFilter] = useState("all");
+	const [updatingReportId, setUpdatingReportId] = useState(null);
+
+	const loadData = useCallback(async () => {
+		try {
+			const [usersRes, roomsRes, swapsRes, reportsRes, analyticsRes] = await Promise.all([
+				api.get("/admin/users"),
+				api.get("/admin/rooms"),
+				api.get("/admin/swaps"),
+				api.get("/reports"),
+				api.get("/admin/analytics"),
+			]);
+			setData({
+				users: usersRes.data.users || [],
+				rooms: roomsRes.data.rooms || [],
+				swaps: swapsRes.data.swaps || [],
+				reports: reportsRes.data.reports || [],
+				analytics: analyticsRes.data,
+			});
+		} catch (error) {
+			showToast(error.response?.data?.message || "Unable to load admin console data.", "error");
+		} finally {
+			setLoading(false);
+		}
+	}, [showToast]);
 
 	useEffect(() => {
-		let mounted = true;
-		(async () => {
-			try {
-				const [usersResponse, roomsResponse, swapsResponse, analyticsResponse] = await Promise.all([api.get("/admin/users"), api.get("/admin/rooms"), api.get("/admin/swaps"), api.get("/admin/analytics")]);
-				if (mounted) setData({ users: usersResponse.data.users || [], rooms: roomsResponse.data.rooms || [], swaps: swapsResponse.data.swaps || [], analytics: analyticsResponse.data });
-			} catch (error) {
-				showToast(error.response?.data?.message || "Unable to load admin data.", "error");
-			} finally {
-				if (mounted) setLoading(false);
-			}
-		})();
-		return () => { mounted = false; };
-	}, [showToast]);
+		loadData();
+	}, [loadData]);
+
+	const handleUpdateReportStatus = async (reportId, newStatus) => {
+		setUpdatingReportId(reportId);
+		try {
+			const res = await api.patch(`/reports/${reportId}/status`, { status: newStatus });
+			showToast(res.data.message, "success");
+			await loadData();
+		} catch (error) {
+			showToast(error.response?.data?.message || "Failed to update report status.", "error");
+		} finally {
+			setUpdatingReportId(null);
+		}
+	};
+
+	const handleDeleteReport = async (reportId) => {
+		if (!window.confirm("Are you sure you want to delete this report?")) return;
+		try {
+			const res = await api.delete(`/reports/${reportId}`);
+			showToast(res.data.message, "success");
+			await loadData();
+		} catch (error) {
+			showToast(error.response?.data?.message || "Failed to delete report.", "error");
+		}
+	};
+
+	const filteredUsers = useMemo(() => {
+		if (!userSearch.trim()) return data.users;
+		const query = userSearch.toLowerCase();
+		return data.users.filter(
+			(u) =>
+				u.name.toLowerCase().includes(query) ||
+				u.email.toLowerCase().includes(query) ||
+				(u.allotedRoom && u.allotedRoom.toLowerCase().includes(query)) ||
+				(u.currentRoom && u.currentRoom.toLowerCase().includes(query))
+		);
+	}, [data.users, userSearch]);
+
+	const filteredReports = useMemo(() => {
+		if (reportFilter === "all") return data.reports;
+		return data.reports.filter((r) => r.status === reportFilter);
+	}, [data.reports, reportFilter]);
 
 	const analytics = data.analytics;
 	const statusTotals = useMemo(() => ({ total: analytics?.roomsByStatus?.reduce((sum, item) => sum + item.count, 0) || 0 }), [analytics]);
@@ -38,43 +96,309 @@ export default function AdminDashboard() {
 		<section className="page-shell">
 			<div className="page-head">
 				<div>
-					<p className="eyebrow">Admin dashboard</p>
-					<h1>Operational overview</h1>
-					<p className="muted">Read-only admin visibility for users, rooms, and swap activity.</p>
+					<p className="eyebrow">Admin Console</p>
+					<h1>Campus Management & Conflict Resolution</h1>
+					<p className="muted">Review reported room conflicts, verify users, and monitor room availability.</p>
 				</div>
 				<Badge value={user?.role || "admin"} />
 			</div>
 
-			<div className="metric-grid">
+			{/* Sub-nav Tabs */}
+			<div style={{ display: "flex", gap: "8px", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px", marginBottom: "20px", flexWrap: "wrap" }}>
 				{[
-					{ label: "Users", value: analytics?.totalUsers || 0 },
-					{ label: "Rooms", value: analytics?.totalRooms || 0 },
-					{ label: "Swaps week", value: analytics?.swapsCompletedThisWeek || 0 },
-					{ label: "Swaps month", value: analytics?.swapsCompletedThisMonth || 0 },
-				].map((item) => <div key={item.label} className="surface metric-card"><p className="eyebrow">{item.label}</p><h2>{item.value}</h2></div>)}
+					{ id: "overview", label: "Overview" },
+					{ id: "reports", label: `Reports & Issues (${data.reports.filter(r => r.status === 'pending').length} Pending)` },
+					{ id: "users", label: `Users (${data.users.length})` },
+					{ id: "rooms", label: `Rooms (${data.rooms.length})` },
+					{ id: "swaps", label: `Swaps (${data.swaps.length})` },
+				].map((tab) => (
+					<button
+						key={tab.id}
+						type="button"
+						className={`sidebar-link ${activeTab === tab.id ? "sidebar-link-active" : ""}`}
+						style={{ padding: "8px 16px", borderRadius: "8px", cursor: "pointer" }}
+						onClick={() => setActiveTab(tab.id)}
+					>
+						{tab.label}
+					</button>
+				))}
 			</div>
 
-			<div className="dashboard-stack">
-				<section className="surface dashboard-panel">
-					<h2>Room status</h2>
-					{analytics?.roomsByStatus?.length ? analytics.roomsByStatus.map((item) => <div key={item._id} className="bar-row"><span>{item._id}</span><div className="bar-track"><div className="bar-fill" style={{ width: barWidth(item.count, statusTotals.total) }} /></div><strong>{item.count}</strong></div>) : <EmptyState title="No analytics yet" message="Status data will appear after rooms are created." icon="▣" />}
-				</section>
-				<section className="surface dashboard-panel">
-					<h2>Most active blocks</h2>
-					{analytics?.mostActiveBlocks?.length ? analytics.mostActiveBlocks.map((item) => <div key={item._id} className="bar-row"><span>{item._id || "Unassigned"}</span><div className="bar-track"><div className="bar-fill" style={{ width: barWidth(item.count, analytics.mostActiveBlocks[0]?.count || 1) }} /></div><strong>{item.count}</strong></div>) : <EmptyState title="No block data" message="Block activity will appear after room creation." icon="▤" />}
-				</section>
-			</div>
+			{/* TAB 1: OVERVIEW */}
+			{activeTab === "overview" && (
+				<div className="stack gap-20">
+					<div className="metric-grid">
+						{[
+							{ label: "Total Users", value: analytics?.totalUsers || 0 },
+							{ label: "Rooms Registered", value: analytics?.totalRooms || 0 },
+							{ label: "Pending Conflict Reports", value: data.reports.filter((r) => r.status === "pending").length },
+							{ label: "Swaps Completed (Month)", value: analytics?.swapsCompletedThisMonth || 0 },
+						].map((item) => (
+							<div key={item.label} className="surface metric-card">
+								<p className="eyebrow">{item.label}</p>
+								<h2>{item.value}</h2>
+							</div>
+						))}
+					</div>
 
-			<div className="dashboard-stack">
+					<div className="dashboard-stack">
+						<section className="surface dashboard-panel">
+							<h2>Room Status Breakdown</h2>
+							{analytics?.roomsByStatus?.length ? (
+								analytics.roomsByStatus.map((item) => (
+									<div key={item._id} className="bar-row">
+										<span>{item._id}</span>
+										<div className="bar-track">
+											<div className="bar-fill" style={{ width: barWidth(item.count, statusTotals.total) }} />
+										</div>
+										<strong>{item.count}</strong>
+									</div>
+								))
+							) : (
+								<EmptyState title="No room metrics" message="Metrics will populate as rooms register." icon="▣" />
+							)}
+						</section>
+						<section className="surface dashboard-panel">
+							<h2>Active Blocks</h2>
+							{analytics?.mostActiveBlocks?.length ? (
+								analytics.mostActiveBlocks.map((item) => (
+									<div key={item._id} className="bar-row">
+										<span>{item._id || "Unassigned"}</span>
+										<div className="bar-track">
+											<div className="bar-fill" style={{ width: barWidth(item.count, analytics.mostActiveBlocks[0]?.count || 1) }} />
+										</div>
+										<strong>{item.count}</strong>
+									</div>
+								))
+							) : (
+								<EmptyState title="No block data" message="Block metrics will populate as rooms register." icon="▤" />
+							)}
+						</section>
+					</div>
+				</div>
+			)}
+
+			{/* TAB 2: REPORTS & ISSUES */}
+			{activeTab === "reports" && (
 				<section className="surface dashboard-panel">
-					<h2>Users</h2>
-					<div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Verified</th></tr></thead><tbody>{data.users.map((item) => <tr key={item._id}><td>{item.name}</td><td>{item.email}</td><td><Badge value={item.role} /></td><td>{item.isVerified ? "Yes" : "No"}</td></tr>)}</tbody></table></div>
+					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+						<h2>Reported Room Conflicts & Issues</h2>
+						<div style={{ display: "flex", gap: "8px" }}>
+							{["all", "pending", "investigating", "resolved", "dismissed"].map((status) => (
+								<button
+									key={status}
+									type="button"
+									onClick={() => setReportFilter(status)}
+									style={{
+										padding: "4px 10px",
+										borderRadius: "6px",
+										fontSize: "0.8rem",
+										textTransform: "capitalize",
+										border: "1px solid var(--border-color)",
+										background: reportFilter === status ? "var(--color-accent)" : "transparent",
+										color: reportFilter === status ? "#000" : "var(--text-1)",
+										cursor: "pointer",
+									}}
+								>
+									{status}
+								</button>
+							))}
+						</div>
+					</div>
+
+					{filteredReports.length ? (
+						<div className="table-wrap">
+							<table className="data-table">
+								<thead>
+									<tr>
+										<th>Reporter</th>
+										<th>Email</th>
+										<th>Issue Type</th>
+										<th>Alloted</th>
+										<th>Current</th>
+										<th>Details</th>
+										<th>Status</th>
+										<th>Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									{filteredReports.map((report) => (
+										<tr key={report._id}>
+											<td style={{ fontWeight: 600 }}>{report.reporterName}</td>
+											<td>{report.reporterEmail}</td>
+											<td>
+												<span style={{ fontSize: "0.8rem", padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.06)" }}>
+													{report.issueType?.replace(/_/g, " ")}
+												</span>
+											</td>
+											<td className="mono">{report.allotedRoom || "—"}</td>
+											<td className="mono">{report.currentRoom || "—"}</td>
+											<td style={{ maxWidth: "220px", fontSize: "0.85rem" }}>{report.message}</td>
+											<td>
+												<Badge value={report.status} pulse={report.status === "pending"} />
+											</td>
+											<td className="table-actions">
+												{report.status !== "investigating" && (
+													<Button
+														type="button"
+														variant="secondary"
+														size="sm"
+														disabled={updatingReportId === report._id}
+														onClick={() => handleUpdateReportStatus(report._id, "investigating")}
+													>
+														Investigate
+													</Button>
+												)}
+												{report.status !== "resolved" && (
+													<Button
+														type="button"
+														variant="secondary"
+														size="sm"
+														disabled={updatingReportId === report._id}
+														onClick={() => handleUpdateReportStatus(report._id, "resolved")}
+													>
+														Resolve
+													</Button>
+												)}
+												{report.status !== "dismissed" && (
+													<Button
+														type="button"
+														variant="ghost"
+														size="sm"
+														disabled={updatingReportId === report._id}
+														onClick={() => handleUpdateReportStatus(report._id, "dismissed")}
+													>
+														Dismiss
+													</Button>
+												)}
+												<Button
+													type="button"
+													variant="danger"
+													size="sm"
+													onClick={() => handleDeleteReport(report._id)}
+												>
+													Delete
+												</Button>
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					) : (
+						<EmptyState title="No conflict reports" message="No reports found for the selected filter." icon="📋" />
+					)}
 				</section>
+			)}
+
+			{/* TAB 3: USERS */}
+			{activeTab === "users" && (
 				<section className="surface dashboard-panel">
-					<h2>Swap requests</h2>
-					<div className="table-wrap"><table className="data-table"><thead><tr><th>Requester</th><th>Target</th><th>Status</th></tr></thead><tbody>{data.swaps.map((item) => <tr key={item._id}><td>{item.requester?.name || "—"}</td><td>{item.targetUser?.name || "—"}</td><td><Badge value={item.status} pulse={item.status === "pending"} /></td></tr>)}</tbody></table></div>
+					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+						<h2>Registered Students</h2>
+						<input
+							type="text"
+							placeholder="Search by name, email, or room..."
+							value={userSearch}
+							onChange={(e) => setUserSearch(e.target.value)}
+							style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--border-color)", background: "var(--surface-2)", color: "var(--text-1)", fontSize: "0.88rem" }}
+						/>
+					</div>
+
+					<div className="table-wrap">
+						<table className="data-table">
+							<thead>
+								<tr>
+									<th>Name</th>
+									<th>Email</th>
+									<th>Alloted Room</th>
+									<th>Current Room</th>
+									<th>Block / Floor</th>
+									<th>Role</th>
+									<th>Verified</th>
+								</tr>
+							</thead>
+							<tbody>
+								{filteredUsers.map((item) => (
+									<tr key={item._id}>
+										<td>{item.name}</td>
+										<td>{item.email}</td>
+										<td className="mono">{item.allotedRoom || "—"}</td>
+										<td className="mono">{item.currentRoom || "—"}</td>
+										<td>{item.block ? `Block ${item.block}` : "—"}</td>
+										<td><Badge value={item.role} /></td>
+										<td>{item.isVerified ? "✓ Yes" : "No"}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
 				</section>
-			</div>
+			)}
+
+			{/* TAB 4: ROOMS */}
+			{activeTab === "rooms" && (
+				<section className="surface dashboard-panel">
+					<h2>Room Inventory</h2>
+					<div className="table-wrap">
+						<table className="data-table">
+							<thead>
+								<tr>
+									<th>Room Number</th>
+									<th>Block</th>
+									<th>Floor</th>
+									<th>Owner</th>
+									<th>Email</th>
+									<th>Status</th>
+								</tr>
+							</thead>
+							<tbody>
+								{data.rooms.map((room) => (
+									<tr key={room._id}>
+										<td className="mono" style={{ fontWeight: 600 }}>{room.roomNumber}</td>
+										<td>Block {room.block || "—"}</td>
+										<td>{room.floor || "—"}</td>
+										<td>{room.owner?.name || "—"}</td>
+										<td>{room.owner?.email || "—"}</td>
+										<td><Badge value={room.status} pulse={room.status === "pending-swap"} /></td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</section>
+			)}
+
+			{/* TAB 5: SWAP REQUESTS */}
+			{activeTab === "swaps" && (
+				<section className="surface dashboard-panel">
+					<h2>Active & Completed Swaps</h2>
+					<div className="table-wrap">
+						<table className="data-table">
+							<thead>
+								<tr>
+									<th>Requester</th>
+									<th>Target Student</th>
+									<th>Requester Room</th>
+									<th>Target Room</th>
+									<th>Status</th>
+								</tr>
+							</thead>
+							<tbody>
+								{data.swaps.map((item) => (
+									<tr key={item._id}>
+										<td>{item.requester?.name || "—"}</td>
+										<td>{item.targetUser?.name || "—"}</td>
+										<td className="mono">{item.requesterRoom?.roomNumber || "—"}</td>
+										<td className="mono">{item.targetRoom?.roomNumber || "—"}</td>
+										<td><Badge value={item.status} pulse={item.status === "pending"} /></td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</section>
+			)}
 		</section>
 	);
 }

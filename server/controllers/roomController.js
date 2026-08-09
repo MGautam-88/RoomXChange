@@ -157,3 +157,15 @@ export const deleteRoom = async (req, res) => {
 		return res.status(500).json({ message: "Failed to delete room.", error: error.message });
 	}
 };
+
+// GET /api/rooms/count (Public)
+export const getAvailableRoomsCount = async (req, res) => {
+	try {
+		const rooms = await Room.find({ status: "available" }).populate("owner", "isVerified");
+		const count = rooms.filter((r) => r.owner && r.owner.isVerified).length;
+		return res.json({ count });
+	} catch (error) {
+		return res.status(500).json({ message: "Failed to fetch room count.", error: error.message });
+	}
+};
+

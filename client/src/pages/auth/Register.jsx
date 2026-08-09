@@ -26,6 +26,12 @@ export default function Register() {
 	const [loading, setLoading] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 
+	// Conflict reporting state
+	const [conflictData, setConflictData] = useState(null);
+	const [selectedConflictIssue, setSelectedConflictIssue] = useState("alloted");
+	const [reporting, setReporting] = useState(false);
+	const [reportSubmitted, setReportSubmitted] = useState(false);
+
 	// Timer for 60s resend cooldown
 	useEffect(() => {
 		let timer;
@@ -39,6 +45,9 @@ export default function Register() {
 
 	const handleSendOtp = async (event) => {
 		event.preventDefault();
+		setConflictData(null);
+		setReportSubmitted(false);
+
 		const cleanAlloted = form.allotedRoom.trim().toUpperCase();
 		if (!/^[A-F][1-4](0[1-9]|1[0-9]|2[0-5])$/.test(cleanAlloted)) {
 			showToast("Alloted room format must be 1 letter (A-F), 1 floor digit (1-4), and 2 room digits from 01 to 25 (e.g. A101 to F425).", "error");
@@ -65,6 +74,13 @@ export default function Register() {
 			setOtpSent(true);
 			showToast(data.message, "success");
 		} catch (error) {
+			if (error.response?.status === 409 && error.response?.data?.conflict) {
+				const conf = error.response.data.conflict;
+				setConflictData(conf);
+				if (conf.allotedConflict && conf.currentConflict) setSelectedConflictIssue("both");
+				else if (conf.currentConflict) setSelectedConflictIssue("current");
+				else setSelectedConflictIssue("alloted");
+			}
 			showToast(error.response?.data?.message || "Unable to send registration OTP.", "error");
 		} finally {
 			setLoading(false);
@@ -115,9 +131,54 @@ export default function Register() {
 			showToast(data.message, "success");
 			navigate("/");
 		} catch (error) {
+			if (error.response?.status === 409 && error.response?.data?.conflict) {
+				const conf = error.response.data.conflict;
+				setConflictData(conf);
+				if (conf.allotedConflict && conf.currentConflict) setSelectedConflictIssue("both");
+				else if (conf.currentConflict) setSelectedConflictIssue("current");
+				else setSelectedConflictIssue("alloted");
+			}
 			showToast(error.response?.data?.message || "Registration failed. Invalid or expired OTP.", "error");
 		} finally {
 			setSubmitting(false);
+		}
+	};
+
+	const handleSubmitRoomConflictReport = async (event) => {
+		event.preventDefault();
+		if (!conflictData) return;
+		setReporting(true);
+		try {
+			const cleanAlloted = conflictData.allotedRoom || form.allotedRoom.trim().toUpperCase();
+			const cleanCurrent = conflictData.currentRoom || form.currentRoom.trim().toUpperCase() || cleanAlloted;
+			const reporterEmail = form.rollNumber.includes("@") ? form.rollNumber : `${form.rollNumber}@iiitdmj.ac.in`;
+
+			let issueType = "alloted_room_conflict";
+			let msg = `User tried to register with Alloted Room (${cleanAlloted}), but it is already registered to another user. This room belongs to me.`;
+			
+			if (selectedConflictIssue === "current") {
+				issueType = "current_room_conflict";
+				msg = `User tried to register with Current Room (${cleanCurrent}), but it is already registered to another user. This room belongs to me.`;
+			} else if (selectedConflictIssue === "both") {
+				issueType = "both_room_conflict";
+				msg = `User tried to register with Alloted Room (${cleanAlloted}) and Current Room (${cleanCurrent}), but one or both are already registered. These rooms belong to me.`;
+			}
+
+			await api.post("/reports", {
+				reporterName: form.name || "Student",
+				reporterEmail,
+				issueType,
+				allotedRoom: cleanAlloted,
+				currentRoom: cleanCurrent,
+				message: msg,
+			});
+
+			setReportSubmitted(true);
+			showToast("Report submitted successfully to Admin and Super Admin console.", "success");
+		} catch (error) {
+			showToast(error.response?.data?.message || "Failed to submit report.", "error");
+		} finally {
+			setReporting(false);
 		}
 	};
 
@@ -127,6 +188,8 @@ export default function Register() {
 		setOtpToken("");
 		setResendCount(0);
 		setCooldown(0);
+		setConflictData(null);
+		setReportSubmitted(false);
 	};
 
 	return (
@@ -265,6 +328,65 @@ export default function Register() {
 						disabled={otpSent}
 					/>
 				</div>
+
+				{conflictData && (
+					<div style={{ margin: "16px 0", padding: "16px", background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "10px" }}>
+						<div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+							<span style={{ color: "#ef4444", fontSize: "1.2rem" }}>⚠️</span>
+							<h3 style={{ margin: 0, fontSize: "1rem", color: "#f87171" }}>Room Conflict Detected</h3>
+						</div>
+						<p className="muted" style={{ fontSize: "0.88rem", marginBottom: "12px" }}>
+							The room number(s) you entered are already registered to another user. If you believe this room belongs to you, please report this issue to the admin:
+						</p>
+
+						{!reportSubmitted ? (
+							<div className="stack gap-12">
+								<div className="stack gap-8">
+									<label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.88rem" }}>
+										<input
+											type="radio"
+											name="conflictIssue"
+											value="alloted"
+											checked={selectedConflictIssue === "alloted"}
+											onChange={() => setSelectedConflictIssue("alloted")}
+										/>
+										<span>Alloted Room (<strong>{conflictData.allotedRoom}</strong>) belongs to me</span>
+									</label>
+
+									<label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.88rem" }}>
+										<input
+											type="radio"
+											name="conflictIssue"
+											value="current"
+											checked={selectedConflictIssue === "current"}
+											onChange={() => setSelectedConflictIssue("current")}
+										/>
+										<span>Current Room (<strong>{conflictData.currentRoom}</strong>) belongs to me</span>
+									</label>
+
+									<label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.88rem" }}>
+										<input
+											type="radio"
+											name="conflictIssue"
+											value="both"
+											checked={selectedConflictIssue === "both"}
+											onChange={() => setSelectedConflictIssue("both")}
+										/>
+										<span>Both Alloted (<strong>{conflictData.allotedRoom}</strong>) & Current (<strong>{conflictData.currentRoom}</strong>) belong to me</span>
+									</label>
+								</div>
+
+								<Button type="button" variant="secondary" disabled={reporting} onClick={handleSubmitRoomConflictReport}>
+									{reporting ? "Submitting Report..." : "Report Room Issue to Admin"}
+								</Button>
+							</div>
+						) : (
+							<div style={{ color: "var(--color-accent)", fontSize: "0.9rem", fontWeight: 500, padding: "8px 0" }}>
+								✓ Report submitted to Admin and Super Admin reports section.
+							</div>
+						)}
+					</div>
+				)}
 
 				{otpSent ? (
 					<div style={{ margin: "8px 0 0", padding: "14px 16px", background: "rgba(201, 243, 29, 0.05)", border: "1px solid rgba(201, 243, 29, 0.2)", borderRadius: "8px" }}>

@@ -2,7 +2,7 @@ import User from "../models/User.js";
 import Room from "../models/Room.js";
 import SwapRequest from "../models/SwapRequest.js";
 
-const userProjection = "name email role isVerified createdAt updatedAt";
+const userProjection = "name email role isVerified allotedRoom currentRoom block floor createdAt updatedAt";
 const roomPopulateOptions = { path: "owner", select: userProjection };
 const swapPopulateOptions = [
 	{ path: "requester", select: userProjection },
@@ -87,6 +87,57 @@ export const updateUserRole = async (req, res) => {
 		return res.json({ message: "User role updated successfully.", user: updatedUser });
 	} catch (error) {
 		return res.status(500).json({ message: "Failed to update user role.", error: error.message });
+	}
+};
+
+// PUT /api/admin/users/:id (Super Admin edit user details)
+export const updateUserDetails = async (req, res) => {
+	try {
+		const { id } = req.params;
+		const { name, email, allotedRoom, currentRoom } = req.body;
+
+		const user = await User.findById(id);
+		if (!user) {
+			return res.status(404).json({ message: "User not found." });
+		}
+
+		if (name) user.name = name.trim();
+		if (email) user.email = email.trim().toLowerCase();
+		if (allotedRoom) user.allotedRoom = allotedRoom.trim().toUpperCase();
+		if (currentRoom) user.currentRoom = currentRoom.trim().toUpperCase();
+
+		await user.save();
+		const updatedUser = await User.findById(id).select(userProjection);
+		return res.json({ message: "User details updated successfully.", user: updatedUser });
+	} catch (error) {
+		return res.status(500).json({ message: "Failed to update user details.", error: error.message });
+	}
+};
+
+// DELETE /api/admin/users/:id (Super Admin delete user)
+export const deleteUser = async (req, res) => {
+	try {
+		const { id } = req.params;
+
+		if (req.user.id === id) {
+			return res.status(400).json({ message: "You cannot delete your own account." });
+		}
+
+		const user = await User.findById(id);
+		if (!user) {
+			return res.status(404).json({ message: "User not found." });
+		}
+
+		if (user.role === "superadmin") {
+			return res.status(400).json({ message: "Superadmin account cannot be deleted." });
+		}
+
+		await user.deleteOne();
+		await Room.deleteMany({ owner: id });
+
+		return res.json({ message: "User and associated rooms deleted successfully." });
+	} catch (error) {
+		return res.status(500).json({ message: "Failed to delete user.", error: error.message });
 	}
 };
 

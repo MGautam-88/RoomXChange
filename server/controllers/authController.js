@@ -1,9 +1,35 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
+import Room from "../models/Room.js";
 import generateToken from "../utils/generateToken.js";
 import { createAndSendOtpToken, resendOtpToken, verifyOtpToken } from "../services/otpService.js";
 import { isValidCollegeEmail, normalizeRollNumberOrEmail } from "../utils/validateEmail.js";
 import { deriveBlockAndFloor } from "../utils/roomHelpers.js";
+import { emitAvailableRoomsCount } from "../sockets/index.js";
+
+// Helper to check if room is already taken by a registered user
+const checkRoomConflicts = async (rawEmail, cleanAlloted, cleanCurrent) => {
+	const users = await User.find({ isVerified: true, email: { $ne: rawEmail } });
+	const occupiedRooms = new Set();
+	for (const u of users) {
+		if (u.allotedRoom) occupiedRooms.add(u.allotedRoom.toUpperCase());
+		if (u.currentRoom) occupiedRooms.add(u.currentRoom.toUpperCase());
+	}
+
+	const allotedConflict = occupiedRooms.has(cleanAlloted);
+	const currentConflict = occupiedRooms.has(cleanCurrent);
+
+	if (allotedConflict || currentConflict) {
+		return {
+			hasConflict: true,
+			allotedConflict,
+			currentConflict,
+			allotedRoom: cleanAlloted,
+			currentRoom: cleanCurrent,
+		};
+	}
+	return { hasConflict: false };
+};
 
 // Helper to construct user payload for responses
 const makeUserPayload = (user) => {
@@ -53,6 +79,20 @@ export const sendRegisterOtp = async (req, res) => {
 			return res.status(409).json({ message: "This roll number / email is already registered." });
 		}
 
+		// Enforce Room Uniqueness across all verified users
+		const roomCheck = await checkRoomConflicts(rawEmail, cleanAlloted, cleanCurrent);
+		if (roomCheck.hasConflict) {
+			return res.status(409).json({
+				message: "Room conflict: One or both of the entered room numbers belong to another registered student.",
+				conflict: {
+					allotedConflict: roomCheck.allotedConflict,
+					currentConflict: roomCheck.currentConflict,
+					allotedRoom: cleanAlloted,
+					currentRoom: cleanCurrent,
+				},
+			});
+		}
+
 		const result = await createAndSendOtpToken(rawEmail, "signup");
 		return res.json(result);
 	} catch (error) {
@@ -87,6 +127,21 @@ export const registerWithOtp = async (req, res) => {
 		if (!/^[A-F][1-4](0[1-9]|1[0-9]|2[0-5])$/.test(cleanCurrent)) {
 			cleanCurrent = cleanAlloted;
 		}
+
+		// Enforce Room Uniqueness
+		const roomCheck = await checkRoomConflicts(rawEmail, cleanAlloted, cleanCurrent);
+		if (roomCheck.hasConflict) {
+			return res.status(409).json({
+				message: "Room conflict: One or both of the entered room numbers belong to another registered student.",
+				conflict: {
+					allotedConflict: roomCheck.allotedConflict,
+					currentConflict: roomCheck.currentConflict,
+					allotedRoom: cleanAlloted,
+					currentRoom: cleanCurrent,
+				},
+			});
+		}
+
 		const { block, floor } = deriveBlockAndFloor(cleanCurrent);
 		const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -120,6 +175,25 @@ export const registerWithOtp = async (req, res) => {
 				preferredBlocks: Array.isArray(preferredBlocks) ? preferredBlocks : [],
 			});
 		}
+
+		// Sync with Room collection so room is listed as available
+		let userRoom = await Room.findOne({ owner: user._id });
+		if (!userRoom) {
+			await Room.create({
+				owner: user._id,
+				block,
+				roomNumber: cleanCurrent,
+				floor,
+				status: "available",
+			});
+		} else {
+			userRoom.roomNumber = cleanCurrent;
+			userRoom.block = block;
+			userRoom.floor = floor;
+			userRoom.status = "available";
+			await userRoom.save();
+		}
+		await emitAvailableRoomsCount();
 
 		const token = generateToken(user._id, user.role);
 
