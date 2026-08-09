@@ -3,24 +3,28 @@ import nodemailer from "nodemailer";
 const createTransporter = () => {
   console.log("========== createTransporter ==========");
   console.log("EMAIL_HOST:", process.env.EMAIL_HOST || "smtp.gmail.com");
-  console.log("EMAIL_PORT:", process.env.EMAIL_PORT || 587);
+  console.log("EMAIL_PORT:", process.env.EMAIL_PORT || 465);
   console.log("EMAIL_USER:", process.env.EMAIL_USER);
   console.log(
     "EMAIL_PASS:",
     process.env.EMAIL_PASS ? "Present ✅" : "Missing ❌"
   );
 
+  const port = Number(process.env.EMAIL_PORT) || 465;//Port 587 requires 2 extra STARTTLS handshake roundtrips which cause timeouts on serverless environments like Vercel.
+  // SPECIALLY FOR VERCEL: Port 465 uses direct SSL/TLS (secure: true) which is faster and reliable in Serverless Functions
+  const secure = port === 465;
+
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST || "smtp.gmail.com",
-    port: Number(process.env.EMAIL_PORT) || 587,
-    secure: false,
+    port,
+    secure,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
     logger: true,
     debug: true,
   });
@@ -58,8 +62,7 @@ export const sendOtpEmail = async (toEmail, otp, purpose) => {
                 <h2 style="color:#c9f31d;font-size:24px;font-weight:700;margin:0 0 16px 0;">RoomXChange</h2>
 
                 <p style="color:#d1d5db;font-size:15px;line-height:1.5;">
-                  Hello, use the following 4-digit verification code to complete your ${isSignup ? "account registration" : "password reset"
-    }:
+                  Hello, use the following 4-digit verification code to complete your ${isSignup ? "account registration" : "password reset"}:
                 </p>
 
                 <div style="background:#0f1115;border:1px solid #c9f31d;border-radius:8px;padding:18px;text-align:center;margin:24px 0;">
@@ -87,42 +90,45 @@ export const sendOtpEmail = async (toEmail, otp, purpose) => {
 </html>
 `;
 
+  const mailOptions = {
+    from: `"RoomXChange Security" <${process.env.EMAIL_USER}>`,
+    to: toEmail,
+    subject,
+    text: textContent,
+    html: htmlContent,
+    headers: {
+      "X-Priority": "1",
+      "X-MSMail-Priority": "High",
+      Importance: "High",
+    },
+  };
+
   try {
-    console.log("Verifying SMTP connection...");
+    console.log("Sending OTP email via Promise wrapper...");
 
-    try {
-      await transporter.verify();
-      console.log("SMTP verification successful ✅");
-    } catch (err) {
-      console.error("verify() failed");
-      console.error(err);
-      throw err;
-    }
-
-    console.log("Sending OTP email...");
-
-    const info = await transporter.sendMail({
-      from: `"RoomXChange Security" <${process.env.EMAIL_USER}>`,
-      to: toEmail,
-      subject,
-      text: textContent,
-      html: htmlContent,
-      headers: {
-        "X-Priority": "1",
-        "X-MSMail-Priority": "High",
-        Importance: "High",
-      },
+    // SPECIALLY FOR VERCEL SERVERLESS DEPLOYMENT:
+    // Wrapping sendMail inside an explicit Promise ensures the Serverless Function does not close/time out before email transmission is finalized.
+    const info = await new Promise((resolve, reject) => {
+      transporter.sendMail(mailOptions, (err, info) => {
+        if (err) {
+          console.error("========== sendOtpEmail Promise ERROR ==========");
+          console.error("Message:", err.message);
+          console.error("Code:", err.code);
+          console.error("Command:", err.command);
+          console.error("Response:", err.response);
+          reject(err);
+        } else {
+          console.log("Email sent successfully via Promise ✅");
+          console.log("Message ID:", info.messageId);
+          console.log("SMTP Response:", info.response);
+          resolve(info);
+        }
+      });
     });
 
-    console.log("Email sent successfully ✅");
-    console.log("Message ID:", info.messageId);
-    console.log("SMTP Response:", info.response);
+    return info;
   } catch (error) {
     console.error("========== sendOtpEmail ERROR ==========");
-    console.error("Message:", error.message);
-    console.error("Code:", error.code);
-    console.error("Command:", error.command);
-    console.error("Response:", error.response);
     console.error(error);
     throw error;
   }
@@ -136,15 +142,9 @@ export const sendNoRoomsNotificationEmail = async (toEmail, userName) => {
   try {
     const transporter = createTransporter();
 
-    console.log("Verifying SMTP connection...");
-    await transporter.verify();
-    console.log("SMTP verification successful ✅");
+    const subject = "RoomXChange — Update on your room swap preferences";
 
-    const subject =
-      "RoomXChange — Update on your room swap preferences";
-
-    const textContent = `Hello ${userName || "Student"
-      },\n\nCurrently, no rooms are available matching your choices. We will notify you as soon as a suitable room is found.\n\nYou can update your preferences anytime in RoomXChange.\n\nRoomXChange Team`;
+    const textContent = `Hello ${userName || "Student"},\n\nCurrently, no rooms are available matching your choices. We will notify you as soon as a suitable room is found.\n\nYou can update your preferences anytime in RoomXChange.\n\nRoomXChange Team`;
 
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; background:#181b21; color:#eee; padding:24px; border-radius:8px; max-width:520px; border:1px solid #2d323e;">
@@ -155,25 +155,33 @@ export const sendNoRoomsNotificationEmail = async (toEmail, userName) => {
       </div>
     `;
 
-    console.log("Sending notification email...");
-
-    const info = await transporter.sendMail({
+    const mailOptions = {
       from: `"RoomXChange" <${process.env.EMAIL_USER}>`,
       to: toEmail,
       subject,
       text: textContent,
       html: htmlContent,
+    };
+
+    // SPECIALLY FOR VERCEL SERVERLESS DEPLOYMENT:
+    // Explicit Promise wrapper for Nodemailer in Serverless Functions
+    const info = await new Promise((resolve, reject) => {
+      transporter.sendMail(mailOptions, (err, info) => {
+        if (err) {
+          console.error("========== sendNoRoomsNotificationEmail Promise ERROR ==========");
+          console.error(err);
+          reject(err);
+        } else {
+          console.log("Notification email sent successfully ✅");
+          console.log("Message ID:", info.messageId);
+          resolve(info);
+        }
+      });
     });
 
-    console.log("Notification email sent successfully ✅");
-    console.log("Message ID:", info.messageId);
-    console.log("SMTP Response:", info.response);
+    return info;
   } catch (error) {
     console.error("========== sendNoRoomsNotificationEmail ERROR ==========");
-    console.error("Message:", error.message);
-    console.error("Code:", error.code);
-    console.error("Command:", error.command);
-    console.error("Response:", error.response);
     console.error(error);
   }
 };
