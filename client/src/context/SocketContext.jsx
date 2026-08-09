@@ -1,6 +1,6 @@
-/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { io } from "socket.io-client";
+import api from "../api/axios.js";
 import { useAuth } from "./AuthContext.jsx";
 
 const SocketContext = createContext(null);
@@ -10,6 +10,24 @@ export function SocketProvider({ children }) {
 	const [socket, setSocket] = useState(null);
 	const [availableCount, setAvailableCount] = useState(0);
 	const [notifications, setNotifications] = useState([]);
+
+	// Initial REST fetch for room count
+	useEffect(() => {
+		let mounted = true;
+		(async () => {
+			try {
+				const { data } = await api.get("/rooms/available-count");
+				if (mounted && typeof data.count === "number") {
+					setAvailableCount(data.count);
+				}
+			} catch (err) {
+				console.error("Failed to fetch live room count:", err.message);
+			}
+		})();
+		return () => {
+			mounted = false;
+		};
+	}, []);
 
 	useEffect(() => {
 		if (!ready) return undefined;

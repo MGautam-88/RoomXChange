@@ -1,9 +1,11 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
+import Room from "../models/Room.js";
 import generateToken from "../utils/generateToken.js";
 import { createAndSendOtpToken, resendOtpToken, verifyOtpToken } from "../services/otpService.js";
 import { isValidCollegeEmail, normalizeRollNumberOrEmail } from "../utils/validateEmail.js";
 import { deriveBlockAndFloor } from "../utils/roomHelpers.js";
+import { emitAvailableRoomsCount } from "../sockets/index.js";
 
 // Helper to construct user payload for responses
 const makeUserPayload = (user) => {
@@ -19,6 +21,36 @@ const makeUserPayload = (user) => {
 		floor: user.floor || floor,
 		preferredFloors: user.preferredFloors || [],
 		preferredBlocks: user.preferredBlocks || [],
+	};
+};
+
+// Helper function to check if allotted or current room is already registered by another verified user
+const checkRoomConflicts = async (cleanAlloted, cleanCurrent, excludeEmail = null) => {
+	const query = {
+		isVerified: true,
+		$or: [
+			{ allotedRoom: cleanAlloted },
+			{ currentRoom: cleanAlloted },
+			{ allotedRoom: cleanCurrent },
+			{ currentRoom: cleanCurrent },
+		],
+	};
+	if (excludeEmail) {
+		query.email = { $ne: excludeEmail };
+	}
+
+	const existingUser = await User.findOne(query);
+	if (!existingUser) return null;
+
+	const allotedConflict = existingUser.allotedRoom === cleanAlloted || existingUser.currentRoom === cleanAlloted;
+	const currentConflict = existingUser.allotedRoom === cleanCurrent || existingUser.currentRoom === cleanCurrent;
+
+	return {
+		existingUser,
+		allotedConflict,
+		currentConflict,
+		allotedRoom: cleanAlloted,
+		currentRoom: cleanCurrent,
 	};
 };
 
@@ -51,6 +83,19 @@ export const sendRegisterOtp = async (req, res) => {
 		const existingUser = await User.findOne({ email: rawEmail });
 		if (existingUser && existingUser.isVerified) {
 			return res.status(409).json({ message: "This roll number / email is already registered." });
+		}
+
+		// Check for duplicate room registration across existing verified users
+		const conflict = await checkRoomConflicts(cleanAlloted, cleanCurrent, rawEmail);
+		if (conflict) {
+			return res.status(409).json({
+				message: "The entered room code(s) are already claimed by another registered student.",
+				roomConflict: true,
+				allotedConflict: conflict.allotedConflict,
+				currentConflict: conflict.currentConflict,
+				allotedRoom: cleanAlloted,
+				currentRoom: cleanCurrent,
+			});
 		}
 
 		const result = await createAndSendOtpToken(rawEmail, "signup");
@@ -87,6 +132,20 @@ export const registerWithOtp = async (req, res) => {
 		if (!/^[A-F][1-4](0[1-9]|1[0-9]|2[0-5])$/.test(cleanCurrent)) {
 			cleanCurrent = cleanAlloted;
 		}
+
+		// Re-verify room conflicts before completing registration
+		const conflict = await checkRoomConflicts(cleanAlloted, cleanCurrent, rawEmail);
+		if (conflict) {
+			return res.status(409).json({
+				message: "The entered room code(s) are already claimed by another registered student.",
+				roomConflict: true,
+				allotedConflict: conflict.allotedConflict,
+				currentConflict: conflict.currentConflict,
+				allotedRoom: cleanAlloted,
+				currentRoom: cleanCurrent,
+			});
+		}
+
 		const { block, floor } = deriveBlockAndFloor(cleanCurrent);
 		const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -120,6 +179,15 @@ export const registerWithOtp = async (req, res) => {
 				preferredBlocks: Array.isArray(preferredBlocks) ? preferredBlocks : [],
 			});
 		}
+
+		// Upsert Room document for user room swap listing
+		await Room.findOneAndUpdate(
+			{ owner: user._id },
+			{ owner: user._id, block, roomNumber: cleanCurrent, floor, status: "available" },
+			{ upsert: true, new: true }
+		);
+
+		await emitAvailableRoomsCount();
 
 		const token = generateToken(user._id, user.role);
 

@@ -8,6 +8,7 @@ import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
 import swapRoutes from "./routes/swapRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 // import { initSocketServer } from "./sockets/index.js";
 
 // ==========================================
@@ -52,15 +53,15 @@ app.use("/api/auth", authRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/swaps", swapRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/reports", reportRoutes);
 
 const PORT = process.env.PORT || 5500;
 
-// COMMENTED OUT SPECIALLY FOR VERCEL DEPLOYMENT:
-// Vercel does not use app.listen()/server.listen().
-// It automatically invokes the exported Express app.
-// if (!process.env.VERCEL) {
-//   server.listen(PORT);
-// }
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 
 // SPECIALLY FOR VERCEL SERVERLESS DEPLOYMENT:
 // Export express app as default export for Vercel Serverless Function.

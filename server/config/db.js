@@ -9,7 +9,6 @@ let isConnected = false;
 const connectDB = async () => {
   // SPECIALLY FOR VERCEL: Reuse existing connection if already connected (readyState >= 1) to avoid multiple connection requests
   if (mongoose.connection.readyState >= 1 || isConnected) {
-    console.log("Using cached MongoDB connection");
     return;
   }
 

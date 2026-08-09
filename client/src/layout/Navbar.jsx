@@ -20,7 +20,7 @@ export default function Navbar({ publicMode = false }) {
 			{ to: "/swap", label: "Swap" },
 		];
 		if (user?.role === "admin" || user?.role === "superadmin") {
-			items.push({ to: "/dashboard", label: "Dashboard" });
+			items.push({ to: "/rooms", label: "Browse rooms" });
 			items.push({ to: "/admin", label: "Admin" });
 		}
 		if (user?.role === "superadmin") items.push({ to: "/superadmin", label: "Super admin" });

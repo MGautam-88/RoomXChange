@@ -24,8 +24,8 @@ const getConnectedUserId = (socket) => {
 };
 
 const getVerifiedAvailableRoomsCount = async () => {
-	const rooms = await Room.find({ status: "available" }).populate("owner", "isVerified");
-	return rooms.filter((r) => r.owner && r.owner.isVerified).length;
+	const count = await User.countDocuments({ isVerified: true });
+	return count;
 };
 
 export const initSocketServer = (httpServer) => {

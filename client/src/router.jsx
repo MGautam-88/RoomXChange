@@ -41,10 +41,6 @@ export default function AppRouter() {
 					<Route path="/rooms/:roomId" element={<ProtectedRoute roles={["admin", "superadmin"]}><AnimatedPage><RoomDetail /></AnimatedPage></ProtectedRoute>} />
 					<Route path="/preferences" element={<AnimatedPage><Preferences /></AnimatedPage>} />
 					<Route path="/swap" element={<AnimatedPage><Swap /></AnimatedPage>} />
-				</Route>
-
-				<Route element={<DashboardLayout />}>
-					<Route path="/dashboard" element={<ProtectedRoute roles={["admin", "superadmin"]}><AnimatedPage><UserDashboard /></AnimatedPage></ProtectedRoute>} />
 					<Route path="/admin" element={<ProtectedRoute roles={["admin", "superadmin"]}><AnimatedPage><AdminDashboard /></AnimatedPage></ProtectedRoute>} />
 					<Route path="/superadmin" element={<ProtectedRoute roles={["superadmin"]}><AnimatedPage><SuperAdminDashboard /></AnimatedPage></ProtectedRoute>} />
 				</Route>

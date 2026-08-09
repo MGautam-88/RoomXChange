@@ -15,7 +15,6 @@ export default function Sidebar() {
 				<Badge value={user?.role || "user"} />
 			</div>
 			<nav className="sidebar-nav">
-				<NavLink to="/dashboard" className={navLinkClass}>Overview</NavLink>
 				<NavLink to="/preferences" className={navLinkClass}>Preferences</NavLink>
 				<NavLink to="/swap" className={navLinkClass}>Swap</NavLink>
 				{isAdmin ? <NavLink to="/rooms" className={navLinkClass}>Browse rooms</NavLink> : null}

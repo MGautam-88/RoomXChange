@@ -16,7 +16,7 @@ router.use(protect, authorize("admin", "superadmin"));
 router.get("/users", getAllUsers);
 router.get("/rooms", getAllRooms);
 router.get("/swaps", getAllSwapRequests);
-router.get("/analytics", authorize("superadmin"), getAnalytics);
+router.get("/analytics", getAnalytics);
 router.patch("/users/:id/role", authorize("superadmin"), updateUserRole);
 router.delete("/admins/:id", authorize("superadmin"), removeAdmin);
 

@@ -1,5 +1,16 @@
 import Room from "../models/Room.js";
+import User from "../models/User.js";
 import { emitAvailableRoomsCount } from "../sockets/index.js";
+
+// GET /api/rooms/available-count (Public endpoint for live room counter)
+export const getAvailableRoomsCount = async (req, res) => {
+	try {
+		const count = await User.countDocuments({ isVerified: true });
+		return res.json({ count });
+	} catch (error) {
+		return res.status(500).json({ message: "Failed to fetch room count.", error: error.message });
+	}
+};
 
 const canManageRoom = (req, room) => {
 	if (!room) return false;
