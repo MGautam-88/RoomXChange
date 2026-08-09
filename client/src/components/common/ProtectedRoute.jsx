@@ -7,11 +7,11 @@ const roleRedirect = (role) => {
 	return "/swap";
 };
 
-export default function ProtectedRoute({ roles, children }) {
+export default function ProtectedRoute({ roles }) {
 	const { isAuthenticated, user, ready } = useAuth();
 	const location = useLocation();
 	if (!ready) return <div className="screen-shell">Loading...</div>;
 	if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location }} />;
 	if (roles && !roles.includes(user?.role)) return <Navigate to={roleRedirect(user?.role)} replace />;
-	return children || <Outlet />;
+	return <Outlet />;
 }

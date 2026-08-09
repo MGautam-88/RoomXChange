@@ -5,8 +5,6 @@ import {
 	getAllRooms,
 	getAllSwapRequests,
 	updateUserRole,
-	updateUserDetails,
-	deleteUser,
 	removeAdmin,
 	getAnalytics,
 } from "../controllers/adminController.js";
@@ -18,11 +16,8 @@ router.use(protect, authorize("admin", "superadmin"));
 router.get("/users", getAllUsers);
 router.get("/rooms", getAllRooms);
 router.get("/swaps", getAllSwapRequests);
-router.get("/analytics", getAnalytics);
+router.get("/analytics", authorize("superadmin"), getAnalytics);
 router.patch("/users/:id/role", authorize("superadmin"), updateUserRole);
-router.put("/users/:id", authorize("superadmin"), updateUserDetails);
-router.delete("/users/:id", authorize("superadmin"), deleteUser);
 router.delete("/admins/:id", authorize("superadmin"), removeAdmin);
 
 export default router;
-

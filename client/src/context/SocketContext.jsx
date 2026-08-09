@@ -1,7 +1,7 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./AuthContext.jsx";
-import api from "../api/axios.js";
 
 const SocketContext = createContext(null);
 
@@ -12,17 +12,7 @@ export function SocketProvider({ children }) {
 	const [notifications, setNotifications] = useState([]);
 
 	useEffect(() => {
-		let mounted = true;
-		// Fetch initial count over HTTP immediately
-		api.get("/rooms/count")
-			.then((res) => {
-				if (mounted && typeof res.data?.count === "number") {
-					setAvailableCount(res.data.count);
-				}
-			})
-			.catch(() => {});
-
-		if (!ready) return () => { mounted = false; };
+		if (!ready) return undefined;
 		const socketUrl = (import.meta.env.VITE_API_URL || "http://localhost:5500/api").replace(/\/api$/, "");
 		const client = io(socketUrl, { transports: ["websocket"], auth: { token, userId: user?.id } });
 		client.on("connect", () => setSocket(client));
@@ -30,10 +20,7 @@ export function SocketProvider({ children }) {
 		client.on("notification", (payload) => {
 			setNotifications((current) => [{ id: crypto.randomUUID(), read: false, createdAt: new Date().toISOString(), ...payload }, ...current]);
 		});
-		return () => {
-			mounted = false;
-			client.disconnect();
-		};
+		return () => client.disconnect();
 	}, [ready, token, user?.id]);
 
 	const markAllNotificationsRead = () => setNotifications((current) => current.map((item) => ({ ...item, read: true })));
