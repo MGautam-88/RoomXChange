@@ -16,14 +16,34 @@ app.use(connectDBMiddleware);
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:3000",
   "https://roomxchange.me",
   "https://www.roomxchange.me",
   "https://room-x-change.vercel.app",
+  "https://room-x-change-server.vercel.app",
 ];
+
+// Set Vary: Origin and Cache-Control headers so Vercel CDN never serves cached CORS headers for a different origin
+app.use((req, res, next) => {
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  next();
+});
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.replace(/\/$/, "");
+      if (
+        allowedOrigins.includes(cleanOrigin) ||
+        cleanOrigin.endsWith(".roomxchange.me") ||
+        cleanOrigin.endsWith(".vercel.app")
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
   })
 );
