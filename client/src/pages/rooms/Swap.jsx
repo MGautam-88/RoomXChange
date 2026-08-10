@@ -174,7 +174,7 @@ export default function Swap() {
 			{/* Swap Mapping Modal */}
 			{selectedSwap ? (
 				<div className="modal-backdrop" onClick={() => setSelectedSwap(null)}>
-					<div className="modal-card profile-modal-card" style={{ width: "min(620px, 100%)" }} onClick={(e) => e.stopPropagation()}>
+					<div className="modal-card profile-modal-card" style={{ width: "min(620px, calc(100vw - 24px))" }} onClick={(e) => e.stopPropagation()}>
 						<div className="modal-header">
 							<div>
 								<p className="eyebrow">{selectedSwap.usersCount}-User Swap Chain</p>
@@ -229,7 +229,7 @@ export default function Swap() {
 							) : null}
 						</div>
 
-						<div className="modal-footer profile-modal-footer" style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
+						<div className="modal-footer profile-modal-footer">
 							{selectedSwap.proposalStatus === "completed" ? (
 								<Button type="button" variant="secondary" disabled style={{ width: "100%" }}>
 									Swap Executed & Completed
@@ -237,7 +237,7 @@ export default function Swap() {
 							) : (
 								<>
 									{selectedSwap.mappings.find((m) => m.user.id === user?.id)?.status === "accepted" ? (
-										<Button type="button" variant="secondary" disabled style={{ flex: 1 }}>
+										<Button type="button" variant="secondary" disabled style={{ width: "100%" }}>
 											You Accepted (Waiting for others)
 										</Button>
 									) : (
@@ -245,7 +245,7 @@ export default function Swap() {
 											type="button"
 											onClick={() => handleAcceptProposal(selectedSwap)}
 											disabled={submitting || selectedSwap.proposalStatus === "rejected"}
-											style={{ flex: 1 }}
+											style={{ width: "100%" }}
 										>
 											{submitting ? "Processing..." : "Accept Swap"}
 										</Button>
@@ -256,6 +256,7 @@ export default function Swap() {
 										variant="danger"
 										onClick={() => handleRejectProposal(selectedSwap)}
 										disabled={submitting || selectedSwap.proposalStatus === "rejected"}
+										style={{ width: "100%" }}
 									>
 										{submitting ? "Processing..." : "Reject Swap"}
 									</Button>

@@ -343,7 +343,7 @@ export default function Preferences() {
 							</div>
 						</div>
 
-						<div className="room-actions" style={{ marginTop: "12px", display: "flex", gap: "12px" }}>
+						<div className="room-actions" style={{ marginTop: "12px" }}>
 							<Button type="submit" disabled={saving}>
 								{saving ? "Saving preferences..." : "Save Preferences"}
 							</Button>

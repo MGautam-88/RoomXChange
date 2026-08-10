@@ -133,7 +133,7 @@ export default function AdminDashboard({ isSuperAdmin = false }) {
 			</div>
 
 			{/* Sub-Navigation Tabs */}
-			<div style={{ display: "flex", gap: "10px", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px", marginBottom: "20px" }}>
+			<div className="dashboard-tabs">
 				<button
 					type="button"
 					className={`button ${activeTab === "overview" ? "button-accent" : "button-ghost"}`}
@@ -187,7 +187,7 @@ export default function AdminDashboard({ isSuperAdmin = false }) {
 			{activeTab === "overview" && (
 				<div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
 					{/* Top 5 Metric Cards Row */}
-					<div className="admin-metric-grid" style={{ gap: "18px" }}>
+					<div className="admin-metric-grid">
 						{[
 							{
 								label: "TOTAL USERS",
@@ -259,7 +259,7 @@ export default function AdminDashboard({ isSuperAdmin = false }) {
 					</div>
 
 					{/* Lower Analytics Panels Grid */}
-					<div className="dashboard-stack" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "stretch" }}>
+					<div className="dashboard-stack">
 						<section
 							className="surface dashboard-panel"
 							style={{

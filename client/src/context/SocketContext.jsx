@@ -11,21 +11,26 @@ export function SocketProvider({ children }) {
 	const [availableCount, setAvailableCount] = useState(0);
 	const [notifications, setNotifications] = useState([]);
 
-	// Initial REST fetch for room count
+	// REST fetch & periodic polling for available room count (works seamlessly on Vercel serverless)
 	useEffect(() => {
 		let mounted = true;
-		(async () => {
+		const fetchCount = async () => {
 			try {
 				const { data } = await api.get("/rooms/available-count");
-				if (mounted && typeof data.count === "number") {
+				if (mounted && typeof data?.count === "number") {
 					setAvailableCount(data.count);
 				}
-			} catch (err) {
-				console.error("Failed to fetch live room count:", err.message);
+			} catch {
+				// Quietly ignore polling errors
 			}
-		})();
+		};
+
+		fetchCount();
+		const interval = setInterval(fetchCount, 20000);
+
 		return () => {
 			mounted = false;
+			clearInterval(interval);
 		};
 	}, []);
 
@@ -34,16 +39,23 @@ export function SocketProvider({ children }) {
 	useEffect(() => {
 		if (!ready || !token || !userId) return undefined;
 		const socketUrl = (import.meta.env.VITE_API_URL || "http://localhost:5500/api").replace(/\/api$/, "");
+
+		// Vercel serverless functions do not host persistent WebSockets / Socket.io servers.
+		// Skip socket.io connection on vercel.app backends to prevent 404 console errors.
+		if (socketUrl.includes("vercel.app") || import.meta.env.VITE_DISABLE_SOCKET === "true") {
+			return undefined;
+		}
+
 		const client = io(socketUrl, {
 			transports: ["polling", "websocket"],
-			reconnectionAttempts: 3,
+			reconnectionAttempts: 2,
 			reconnectionDelay: 3000,
 			auth: { token, userId },
 		});
 
 		client.on("connect", () => setSocket(client));
 		client.on("connect_error", () => {
-			// Quietly handle connection errors on serverless/unsupported environments
+			// Quietly handle connection errors
 		});
 		client.on("rooms:available-count", ({ count }) => setAvailableCount(count));
 		client.on("notification", (payload) => {
