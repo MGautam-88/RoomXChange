@@ -3,13 +3,18 @@ import { createPortal } from "react-dom";
 
 export default function Modal({ open, title, children, footer, onClose }) {
 	const panelRef = useRef(null);
+	const onCloseRef = useRef(onClose);
+
+	useEffect(() => {
+		onCloseRef.current = onClose;
+	}, [onClose]);
 
 	useEffect(() => {
 		if (!open) return undefined;
 		const previousOverflow = document.body.style.overflow;
 		document.body.style.overflow = "hidden";
 		const handleKeyDown = (event) => {
-			if (event.key === "Escape") onClose?.();
+			if (event.key === "Escape") onCloseRef.current?.();
 			if (event.key === "Tab" && panelRef.current) {
 				const focusable = panelRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
 				if (!focusable.length) return;
@@ -25,12 +30,17 @@ export default function Modal({ open, title, children, footer, onClose }) {
 			}
 		};
 		document.addEventListener("keydown", handleKeyDown);
-		window.setTimeout(() => panelRef.current?.querySelector("button, [href], input, select, textarea")?.focus(), 0);
+		window.setTimeout(() => {
+			if (panelRef.current && !panelRef.current.contains(document.activeElement)) {
+				const target = panelRef.current.querySelector('[autofocus], input:not([type="hidden"]), textarea, select, button');
+				target?.focus();
+			}
+		}, 10);
 		return () => {
 			document.body.style.overflow = previousOverflow;
 			document.removeEventListener("keydown", handleKeyDown);
 		};
-	}, [open, onClose]);
+	}, [open]);
 
 	if (!open) return null;
 

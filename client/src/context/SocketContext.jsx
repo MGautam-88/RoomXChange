@@ -29,14 +29,16 @@ export function SocketProvider({ children }) {
 		};
 	}, []);
 
+	const userId = user?._id || user?.id;
+
 	useEffect(() => {
-		if (!ready || !token || !user) return undefined;
+		if (!ready || !token || !userId) return undefined;
 		const socketUrl = (import.meta.env.VITE_API_URL || "http://localhost:5500/api").replace(/\/api$/, "");
 		const client = io(socketUrl, {
-			transports: ["websocket", "polling"],
+			transports: ["polling", "websocket"],
 			reconnectionAttempts: 3,
 			reconnectionDelay: 3000,
-			auth: { token, userId: user?.id },
+			auth: { token, userId },
 		});
 
 		client.on("connect", () => setSocket(client));
@@ -49,7 +51,7 @@ export function SocketProvider({ children }) {
 		});
 
 		return () => client.disconnect();
-	}, [ready, token, user]);
+	}, [ready, token, userId]);
 
 	const markAllNotificationsRead = () => setNotifications((current) => current.map((item) => ({ ...item, read: true })));
 

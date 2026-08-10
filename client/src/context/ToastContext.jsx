@@ -12,6 +12,7 @@ export function ToastProvider({ children }) {
 	}, []);
 
 	const showToast = useCallback((message, variant = "info") => {
+		if (!message) return;
 		const id = crypto.randomUUID();
 		setToasts((current) => [...current, { id, message, variant }]);
 	}, []);

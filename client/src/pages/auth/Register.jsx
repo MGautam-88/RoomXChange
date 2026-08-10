@@ -7,7 +7,7 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
 
 export default function Register() {
-	const { updateUser } = useAuth();
+	const { updateUser, setAuthSession } = useAuth();
 	const showToast = useToast();
 	const navigate = useNavigate();
 
@@ -166,8 +166,7 @@ export default function Register() {
 			});
 
 			if (data.token && data.user) {
-				localStorage.setItem("roomxchange-auth", JSON.stringify({ token: data.token, user: data.user }));
-				updateUser(data.user);
+				setAuthSession({ token: data.token, user: data.user });
 			}
 
 			showToast(data.message, "success");

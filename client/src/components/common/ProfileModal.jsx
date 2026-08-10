@@ -1,18 +1,13 @@
 import React from "react";
 import Button from "./Button.jsx";
 import Badge from "./Badge.jsx";
+import { formatDisplayName, getUserInitials } from "../../utils/nameHelpers.js";
 
 export default function ProfileModal({ user, onClose, onLogout }) {
   if (!user) return null;
 
-  const initials = user.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "U";
+  const initials = getUserInitials(user.name);
+  const displayName = formatDisplayName(user.name);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -21,7 +16,7 @@ export default function ProfileModal({ user, onClose, onLogout }) {
           <div className="profile-header-info">
             <div className="profile-avatar-large">{initials}</div>
             <div>
-              <h2 className="profile-name">{user.name}</h2>
+              <h2 className="profile-name" title={user.name}>{displayName}</h2>
               <p className="muted" style={{ marginBottom: "4px" }}>{user.email}</p>
               <Badge value={user.role || "user"} />
             </div>

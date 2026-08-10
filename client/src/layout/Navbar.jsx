@@ -4,6 +4,7 @@ import Button from "../components/common/Button.jsx";
 import ProfileModal from "../components/common/ProfileModal.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
+import { formatDisplayName, getUserInitials } from "../utils/nameHelpers.js";
 
 const navLinkClass = ({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""}`;
 
@@ -34,9 +35,8 @@ export default function Navbar({ publicMode = false }) {
 		navigate("/login");
 	};
 
-	const userInitials = user?.name
-		? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
-		: "U";
+	const userInitials = getUserInitials(user?.name);
+	const displayName = formatDisplayName(user?.name);
 
 	const currentRoomDisplay = (user?.currentRoom || user?.allotedRoom || "101A").slice(0, 4);
 
@@ -69,7 +69,7 @@ export default function Navbar({ publicMode = false }) {
 							aria-label="User Profile"
 						>
 							<span className="profile-avatar-sm">{userInitials}</span>
-							<span className="profile-name-text">{user?.name || "User"}</span>
+							<span className="profile-name-text" title={user?.name || "User"}>{displayName}</span>
 						</button>
 					) : (
 						<>

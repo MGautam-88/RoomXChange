@@ -4,6 +4,7 @@ import Button from "../../components/common/Button.jsx";
 import Input from "../../components/common/Input.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useToast } from "../../context/ToastContext.jsx";
+import { formatDisplayName } from "../../utils/nameHelpers.js";
 
 export default function Login() {
 	const { login } = useAuth();
@@ -19,8 +20,8 @@ export default function Login() {
 		setUnverifiedRoll(null);
 		try {
 			const response = await login(form);
-			showToast(response.message, "success");
-			const role = response.user.role;
+			const displayName = formatDisplayName(response?.user?.name);
+			showToast(response?.message || `Welcome back, ${displayName}!`, "success");
 			navigate("/");
 		} catch (error) {
 			const msg = error.response?.data?.message || "Unable to sign in.";

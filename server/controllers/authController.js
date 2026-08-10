@@ -223,6 +223,7 @@ export const login = async (req, res) => {
 		const token = generateToken(user._id, user.role);
 
 		res.json({
+			message: `Welcome back, ${user.name}!`,
 			token,
 			user: makeUserPayload(user),
 		});

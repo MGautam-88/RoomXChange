@@ -984,9 +984,15 @@ p {
 
 .data-table th,
 .data-table td {
-	padding: 12px 10px;
+	padding: 16px 14px;
 	text-align: left;
 	border-bottom: 1px solid var(--border);
+	vertical-align: middle;
+	box-sizing: border-box;
+}
+
+.data-table tr {
+	height: 64px;
 }
 
 .data-table th {
@@ -1380,6 +1386,12 @@ p {
 .profile-name-text {
 	font-weight: 600;
 	font-size: 0.92rem;
+	max-width: 140px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	display: inline-block;
+	vertical-align: middle;
 }
 
 /* Profile Modal Styles */

@@ -40,8 +40,8 @@ export const sendOtpEmail = async (toEmail, otp, purpose) => {
 
   const isSignup = purpose === "signup";
   const subject = isSignup
-    ? `${otp} is your RoomXChange verification code`
-    : `${otp} is your RoomXChange password reset code`;
+    ? "RoomXChange Verification Code"
+    : "RoomXChange Password Reset Code";
 
   const textContent = `Your RoomXChange verification code is: ${otp}\n\nThis 4-digit code is valid for 15 minutes. If you did not request this code, please ignore this email.\n\nRoomXChange Team`;
 

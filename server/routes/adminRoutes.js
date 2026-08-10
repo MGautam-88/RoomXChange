@@ -6,6 +6,7 @@ import {
 	getAllSwapRequests,
 	updateUserRole,
 	removeAdmin,
+	deleteUser,
 	getAnalytics,
 } from "../controllers/adminController.js";
 
@@ -19,5 +20,6 @@ router.get("/swaps", getAllSwapRequests);
 router.get("/analytics", getAnalytics);
 router.patch("/users/:id/role", authorize("superadmin"), updateUserRole);
 router.delete("/admins/:id", authorize("superadmin"), removeAdmin);
+router.delete("/users/:id", authorize("superadmin"), deleteUser);
 
 export default router;

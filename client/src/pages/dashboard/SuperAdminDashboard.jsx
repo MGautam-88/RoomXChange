@@ -36,6 +36,8 @@ export default function SuperAdminDashboard() {
 	const [updatingReportId, setUpdatingReportId] = useState(null);
 	const [savingRoleId, setSavingRoleId] = useState(null);
 	const [selectedSwap, setSelectedSwap] = useState(null);
+	const [reverifyModalConfig, setReverifyModalConfig] = useState(null);
+	const [superAdminPassword, setSuperAdminPassword] = useState("");
 
 	const loadData = useCallback(async () => {
 		try {
@@ -118,15 +120,69 @@ export default function SuperAdminDashboard() {
 		}
 	};
 
-	const updateUserRole = async (targetUser, newRole) => {
-		if (targetUser.role === newRole) return;
+	const promoteUserToAdmin = async (targetUser) => {
+		const ok = await confirm({
+			title: "Promote User to Admin",
+			message: `Are you sure you want to promote ${targetUser.name} to Admin role?`,
+			confirmLabel: "Promote to Admin",
+		});
+		if (!ok) return;
 		setSavingRoleId(targetUser._id);
 		try {
-			const response = await api.patch(`/admin/users/${targetUser._id}/role`, { role: newRole });
+			const response = await api.patch(`/admin/users/${targetUser._id}/role`, { role: "admin" });
 			showToast(response.data.message, "success");
 			await loadData();
 		} catch (error) {
-			showToast(error.response?.data?.message || "Unable to update role.", "error");
+			showToast(error.response?.data?.message || "Unable to promote user.", "error");
+		} finally {
+			setSavingRoleId(null);
+		}
+	};
+
+	const handleCloseReverifyModal = useCallback(() => {
+		setReverifyModalConfig(null);
+		setSuperAdminPassword("");
+	}, []);
+
+	const promoteAdminToSuperAdmin = (targetUser) => {
+		setReverifyModalConfig({
+			targetUser,
+			newRole: "superadmin",
+			title: "Promote to Super Admin",
+			actionText: "Promote to Super Admin",
+			description: `You are granting full Super Admin privileges to ${targetUser.name}.`,
+		});
+		setSuperAdminPassword("");
+	};
+
+	const demoteSuperAdminToAdmin = (targetUser) => {
+		setReverifyModalConfig({
+			targetUser,
+			newRole: "admin",
+			title: "Demote Super Admin to Admin",
+			actionText: "Demote to Admin",
+			description: `You are demoting ${targetUser.name} from Super Admin to Admin.`,
+		});
+		setSuperAdminPassword("");
+	};
+
+	const handleConfirmRoleReverification = async (e) => {
+		if (e) e.preventDefault();
+		if (!reverifyModalConfig || !superAdminPassword.trim()) return;
+
+		const { targetUser, newRole } = reverifyModalConfig;
+		setSavingRoleId(targetUser._id);
+		try {
+			const response = await api.patch(`/admin/users/${targetUser._id}/role`, {
+				role: newRole,
+				password: superAdminPassword,
+			});
+			showToast(response.data.message, "success");
+			setReverifyModalConfig(null);
+			setSuperAdminPassword("");
+			await loadData();
+		} catch (error) {
+			showToast(error.response?.data?.message || "Super Admin password verification failed.", "error");
 		} finally {
 			setSavingRoleId(null);
 		}
@@ -135,17 +191,40 @@ export default function SuperAdminDashboard() {
 	const removeAdmin = async (targetUser) => {
 		const ok = await confirm({
 			title: "Remove Admin Rights",
-			message: `Are you sure you want to remove admin access for ${targetUser.name}?`,
-			confirmLabel: "Remove admin",
+			message: `Are you sure you want to remove admin access for ${targetUser.name}? User will become a normal user.`,
+			confirmLabel: "Remove Admin",
 			danger: true,
 		});
 		if (!ok) return;
+		setSavingRoleId(targetUser._id);
 		try {
 			const response = await api.delete(`/admin/admins/${targetUser._id}`);
 			showToast(response.data.message, "success");
 			await loadData();
 		} catch (error) {
 			showToast(error.response?.data?.message || "Unable to remove admin.", "error");
+		} finally {
+			setSavingRoleId(null);
+		}
+	};
+
+	const deleteUser = async (targetUser) => {
+		const ok = await confirm({
+			title: "Delete User Account",
+			message: `Are you sure you want to permanently delete ${targetUser.name} and remove all their data from the database?`,
+			confirmLabel: "Delete User",
+			danger: true,
+		});
+		if (!ok) return;
+		setSavingRoleId(targetUser._id);
+		try {
+			const response = await api.delete(`/admin/users/${targetUser._id}`);
+			showToast(response.data.message, "success");
+			await loadData();
+		} catch (error) {
+			showToast(error.response?.data?.message || "Unable to delete user.", "error");
+		} finally {
+			setSavingRoleId(null);
 		}
 	};
 
@@ -545,14 +624,14 @@ export default function SuperAdminDashboard() {
 			{/* USER GOVERNANCE & DIRECTORY TAB */}
 			{activeTab === "users" && (
 				<section className="surface dashboard-panel">
-					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "16px" }}>
 						<div>
-							<h2>User Directory & Role Governance</h2>
-							<p className="muted" style={{ fontSize: "0.88rem" }}>
+							<h2 style={{ fontSize: "1.3rem", fontWeight: 700 }}>User Directory & Role Governance</h2>
+							<p className="muted" style={{ fontSize: "0.88rem", marginTop: "4px" }}>
 								View all users, inspect room allocations, and promote or demote platform roles.
 							</p>
 						</div>
-						<div style={{ width: "300px" }}>
+						<div style={{ width: "340px", flexShrink: 0 }}>
 							<Input
 								placeholder="Search by name, roll, room code, role..."
 								value={userSearch}
@@ -589,31 +668,69 @@ export default function SuperAdminDashboard() {
 										</td>
 										<td><Badge value={item.role} /></td>
 										<td className="table-actions">
-											{item.role !== "superadmin" ? (
-												<div style={{ display: "flex", gap: "6px" }}>
-													<Button
-														type="button"
-														variant="secondary"
-														size="sm"
-														disabled={savingRoleId === item._id}
-														onClick={() => updateRole(item, item.role === "admin" ? "user" : "admin")}
-													>
-														{item.role === "admin" ? "Demote to User" : "Promote to Admin"}
-													</Button>
-													{item.role === "admin" && (
+											{item.role === "superadmin" ? (
+												(item._id === user?.id || item._id === user?._id) ? (
+													<span className="muted" style={{ fontSize: "0.85rem", display: "inline-block", padding: "8px 0" }}>Current Super Admin</span>
+												) : (
+													<div style={{ display: "grid", gridTemplateColumns: "195px 135px", gap: "12px", alignItems: "center" }}>
 														<Button
 															type="button"
 															variant="danger"
 															size="sm"
+															style={{ width: "100%", justifyContent: "center", fontSize: "0.85rem", padding: "8px 12px" }}
 															disabled={savingRoleId === item._id}
-															onClick={() => removeAdmin(item)}
+															onClick={() => demoteSuperAdminToAdmin(item)}
 														>
-															Remove Admin
+															Demote to Admin
 														</Button>
-													)}
+													</div>
+												)
+											) : item.role === "admin" ? (
+												<div style={{ display: "grid", gridTemplateColumns: "195px 135px", gap: "12px", alignItems: "center" }}>
+													<Button
+														type="button"
+														variant="secondary"
+														size="sm"
+														style={{ width: "100%", justifyContent: "center", fontSize: "0.85rem", padding: "8px 12px" }}
+														disabled={savingRoleId === item._id}
+														onClick={() => promoteAdminToSuperAdmin(item)}
+													>
+														Promote to Super Admin
+													</Button>
+													<Button
+														type="button"
+														variant="danger"
+														size="sm"
+														style={{ width: "100%", justifyContent: "center", fontSize: "0.85rem", padding: "8px 12px" }}
+														disabled={savingRoleId === item._id}
+														onClick={() => removeAdmin(item)}
+													>
+														Remove Admin
+													</Button>
 												</div>
 											) : (
-												<span className="muted" style={{ fontSize: "0.82rem" }}>Protected Super Admin</span>
+												<div style={{ display: "grid", gridTemplateColumns: "195px 135px", gap: "12px", alignItems: "center" }}>
+													<Button
+														type="button"
+														variant="secondary"
+														size="sm"
+														style={{ width: "100%", justifyContent: "center", fontSize: "0.85rem", padding: "8px 12px" }}
+														disabled={savingRoleId === item._id}
+														onClick={() => promoteUserToAdmin(item)}
+													>
+														Promote to Admin
+													</Button>
+													<Button
+														type="button"
+														variant="danger"
+														size="sm"
+														style={{ width: "100%", justifyContent: "center", fontSize: "0.85rem", padding: "8px 12px" }}
+														disabled={savingRoleId === item._id}
+														onClick={() => deleteUser(item)}
+													>
+														Delete User
+													</Button>
+												</div>
 											)}
 										</td>
 									</tr>
@@ -628,51 +745,48 @@ export default function SuperAdminDashboard() {
 			{activeTab === "swaps" && (
 				<section className="surface dashboard-panel">
 					<div style={{ marginBottom: "16px" }}>
-						<h2>Swap Requests Overview</h2>
+						<h2>All Swap Requests ({data.swaps.length})</h2>
 						<p className="muted" style={{ fontSize: "0.88rem" }}>
-							Click any request row to inspect full room exchange details and student profiles.
+							Platform-wide listing of all peer-to-peer room swap submissions and status.
 						</p>
 					</div>
+
 					<div className="table-wrap">
 						<table className="data-table">
 							<thead>
 								<tr>
 									<th>Requester</th>
-									<th>Requester Room</th>
 									<th>Target Student</th>
-									<th>Target Room</th>
 									<th>Status</th>
-									<th>Date</th>
-									<th>Action</th>
+									<th>Submitted</th>
+									<th>Actions</th>
 								</tr>
 							</thead>
 							<tbody>
 								{data.swaps.map((item) => (
-									<tr
-										key={item._id}
-										onClick={() => setSelectedSwap(item)}
-										style={{ cursor: "pointer", transition: "background 150ms ease" }}
-										className="hover-row"
-									>
-										<td style={{ fontWeight: 600 }}>{item.requester?.name || "—"}</td>
-										<td className="mono" style={{ fontWeight: 600 }}>{item.requesterRoom?.roomNumber || "—"}</td>
-										<td style={{ fontWeight: 600 }}>{item.targetUser?.name || "—"}</td>
-										<td className="mono" style={{ fontWeight: 600 }}>{item.targetRoom?.roomNumber || "—"}</td>
-										<td><Badge value={item.status} pulse={item.status === "pending"} /></td>
-										<td className="muted" style={{ fontSize: "0.82rem" }}>
-											{new Date(item.createdAt).toLocaleDateString()}
+									<tr key={item._id}>
+										<td>
+											<div style={{ fontWeight: 600 }}>{item.requester?.name || "Student"}</div>
+											<div className="mono muted" style={{ fontSize: "0.8rem" }}>
+												{item.requester?.email ? item.requester.email.split("@")[0] : "—"} ({item.requesterRoom?.roomNumber || "—"})
+											</div>
 										</td>
+										<td>
+											<div style={{ fontWeight: 600 }}>{item.targetUser?.name || "Student"}</div>
+											<div className="mono muted" style={{ fontSize: "0.8rem" }}>
+												{item.targetUser?.email ? item.targetUser.email.split("@")[0] : "—"} ({item.targetRoom?.roomNumber || "—"})
+											</div>
+										</td>
+										<td><Badge value={item.status} pulse={item.status === "pending"} /></td>
+										<td style={{ fontSize: "0.85rem" }}>{new Date(item.createdAt).toLocaleDateString()}</td>
 										<td>
 											<Button
 												type="button"
 												variant="secondary"
 												size="sm"
-												onClick={(e) => {
-													e.stopPropagation();
-													setSelectedSwap(item);
-												}}
+												onClick={() => setSelectedSwap(item)}
 											>
-												View details
+												Swap Details
 											</Button>
 										</td>
 									</tr>
@@ -687,10 +801,10 @@ export default function SuperAdminDashboard() {
 			{selectedSwap && (
 				<Modal
 					open={Boolean(selectedSwap)}
+					title="Swap Request Details"
 					onClose={() => setSelectedSwap(null)}
-					title="Complete Swap Mapping"
 					footer={
-						<div style={{ display: "flex", justifyContent: "flex-end", width: "100%" }}>
+						<div style={{ display: "flex", justifyContent: "flex-end" }}>
 							<Button type="button" variant="secondary" onClick={() => setSelectedSwap(null)}>
 								Close
 							</Button>
@@ -700,33 +814,25 @@ export default function SuperAdminDashboard() {
 					{(() => {
 						const mappings = selectedSwap.mappings || [
 							{
-								user: { id: selectedSwap.requester?._id, name: selectedSwap.requester?.name, email: selectedSwap.requester?.email },
-								currentRoom: selectedSwap.requesterRoom?.roomNumber || "—",
-								newRoom: selectedSwap.targetRoom?.roomNumber || "—",
-								status: selectedSwap.status || "pending",
+								user: { name: selectedSwap.requester?.name, email: selectedSwap.requester?.email },
+								currentRoom: selectedSwap.requesterRoom?.roomNumber,
+								newRoom: selectedSwap.targetRoom?.roomNumber,
+								status: selectedSwap.status,
 							},
 							{
-								user: { id: selectedSwap.targetUser?._id, name: selectedSwap.targetUser?.name, email: selectedSwap.targetUser?.email },
-								currentRoom: selectedSwap.targetRoom?.roomNumber || "—",
-								newRoom: selectedSwap.requesterRoom?.roomNumber || "—",
+								user: { name: selectedSwap.targetUser?.name, email: selectedSwap.targetUser?.email },
+								currentRoom: selectedSwap.targetRoom?.roomNumber,
+								newRoom: selectedSwap.requesterRoom?.roomNumber,
 								status: "pending",
 							},
 						];
-						const chainLength = selectedSwap.chainLength || mappings.length;
-
 						return (
-							<div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-								<div>
-									<p className="eyebrow" style={{ color: "var(--color-accent, #c9f31d)", fontSize: "0.75rem", marginBottom: "4px" }}>
-										{chainLength}-USER SWAP CHAIN
-									</p>
-									<p className="muted" style={{ fontSize: "0.85rem" }}>
-										Below is the full mapping of all participating users, their room transfers, and their individual confirmation statuses:
-									</p>
-								</div>
-
-								<div className="table-wrap surface" style={{ borderRadius: "12px", overflow: "hidden", border: "1px solid var(--border-color)" }}>
-									<table className="data-table">
+							<div>
+								<p className="muted" style={{ fontSize: "0.88rem", marginBottom: "16px" }}>
+									Chain length: <strong style={{ color: "var(--text-1)" }}>{selectedSwap.chainLength || mappings.length}-user swap chain</strong>
+								</p>
+								<div className="table-wrap" style={{ marginBottom: "16px" }}>
+									<table className="data-table" style={{ fontSize: "0.9rem" }}>
 										<thead>
 											<tr>
 												<th>User</th>
@@ -740,16 +846,9 @@ export default function SuperAdminDashboard() {
 												<tr key={m.user?.id || idx}>
 													<td>
 														<strong style={{ fontSize: "0.95rem" }}>{m.user?.name || "Student"}</strong>
-														{m.user?.email && (
-															<span className="mono muted" style={{ display: "block", fontSize: "0.78rem" }}>
-																Roll: {m.user.email.split("@")[0].toUpperCase()}
-															</span>
-														)}
 													</td>
-													<td className="mono" style={{ fontSize: "0.95rem" }}>{m.currentRoom || "—"}</td>
-													<td className="mono accent" style={{ fontSize: "0.95rem", color: "var(--color-accent, #c9f31d)" }}>
-														<strong>{m.newRoom || "—"}</strong>
-													</td>
+													<td className="mono">{m.currentRoom || "—"}</td>
+													<td className="mono">{m.newRoom || "—"}</td>
 													<td>
 														<Badge value={m.status || "pending"} pulse={m.status === "pending"} />
 													</td>
@@ -758,14 +857,53 @@ export default function SuperAdminDashboard() {
 										</tbody>
 									</table>
 								</div>
-
-								<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem", color: "var(--text-2)", borderTop: "1px solid var(--border-color)", paddingTop: "12px", marginTop: "4px" }}>
-									<span>Request ID: <span className="mono">{selectedSwap._id}</span></span>
-									<span>Submitted: {new Date(selectedSwap.createdAt).toLocaleString()}</span>
-								</div>
 							</div>
 						);
 					})()}
+				</Modal>
+			)}
+
+			{reverifyModalConfig && (
+				<Modal
+					open={Boolean(reverifyModalConfig)}
+					title={`Super Admin Reverification`}
+					onClose={handleCloseReverifyModal}
+					footer={
+						<div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+							<Button
+								type="button"
+								variant="ghost"
+								onClick={handleCloseReverifyModal}
+							>
+								Cancel
+							</Button>
+							<Button
+								type="button"
+								variant={reverifyModalConfig?.newRole === "admin" ? "danger" : "accent"}
+								disabled={!superAdminPassword.trim() || savingRoleId === reverifyModalConfig?.targetUser?._id}
+								onClick={handleConfirmRoleReverification}
+							>
+								{savingRoleId === reverifyModalConfig?.targetUser?._id ? "Verifying..." : `Verify & ${reverifyModalConfig?.actionText}`}
+							</Button>
+						</div>
+					}
+				>
+					<form onSubmit={handleConfirmRoleReverification}>
+						<p style={{ marginBottom: "12px", fontSize: "0.95rem", lineHeight: 1.5 }}>
+							{reverifyModalConfig?.description}
+						</p>
+						<p style={{ marginBottom: "20px", fontSize: "0.85rem" }} className="muted">
+							Please enter your Super Admin account password to re-verify your identity before granting or removing governance privileges.
+						</p>
+						<Input
+							label="Super Admin Password"
+							type="password"
+							placeholder="Enter your password to verify"
+							value={superAdminPassword}
+							onChange={(e) => setSuperAdminPassword(e.target.value)}
+							autoFocus
+						/>
+					</form>
 				</Modal>
 			)}
 		</section>

@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import Room from "../models/Room.js";
 import SwapRequest from "../models/SwapRequest.js";
@@ -110,28 +111,46 @@ export const getAllSwapRequests = async (req, res) => {
 // PATCH /api/admin/users/:id/role
 export const updateUserRole = async (req, res) => {
 	try {
-		const { role } = req.body;
+		const { role, password } = req.body;
 		const { id } = req.params;
 
-		if (!["user", "admin"].includes(role)) {
-			return res.status(400).json({ message: "Role must be either user or admin." });
+		if (!["user", "admin", "superadmin"].includes(role)) {
+			return res.status(400).json({ message: "Role must be user, admin, or superadmin." });
 		}
 
-		const user = await User.findById(id);
-		if (!user) {
+		const targetUser = await User.findById(id);
+		if (!targetUser) {
 			return res.status(404).json({ message: "User not found." });
 		}
 
-		if (user.role === "superadmin") {
-			return res.status(400).json({ message: "Superadmin role cannot be changed here." });
+		if (req.user.id === id && role !== "superadmin") {
+			return res.status(400).json({ message: "You cannot demote your own Super Admin account." });
 		}
 
-		user.role = role;
-		await user.save();
+		const requiresPasswordCheck = role === "superadmin" || (targetUser.role === "superadmin" && role !== "superadmin");
+
+		if (requiresPasswordCheck) {
+			if (!password) {
+				return res.status(400).json({ message: "Super Admin password verification is required for this action." });
+			}
+
+			const performingSuperAdmin = await User.findById(req.user.id);
+			if (!performingSuperAdmin) {
+				return res.status(401).json({ message: "Unauthorized action." });
+			}
+
+			const isMatch = await bcrypt.compare(password, performingSuperAdmin.password);
+			if (!isMatch) {
+				return res.status(401).json({ message: "Invalid Super Admin password. Verification failed." });
+			}
+		}
+
+		targetUser.role = role;
+		await targetUser.save();
 
 		const updatedUser = await User.findById(id).select(userProjection);
 
-		return res.json({ message: "User role updated successfully.", user: updatedUser });
+		return res.json({ message: `${targetUser.name}'s role updated to ${role}.`, user: updatedUser });
 	} catch (error) {
 		return res.status(500).json({ message: "Failed to update user role.", error: error.message });
 	}
@@ -143,7 +162,7 @@ export const removeAdmin = async (req, res) => {
 		const { id } = req.params;
 
 		if (req.user.id === id) {
-			return res.status(400).json({ message: "You cannot remove your own account." });
+			return res.status(400).json({ message: "You cannot remove your own admin rights." });
 		}
 
 		const user = await User.findById(id);
@@ -153,14 +172,45 @@ export const removeAdmin = async (req, res) => {
 		}
 
 		if (user.role !== "admin") {
-			return res.status(400).json({ message: "Only admin accounts can be removed here." });
+			return res.status(400).json({ message: "Target user is not an admin." });
 		}
 
-		await user.deleteOne();
+		user.role = "user";
+		await user.save();
 
-		return res.json({ message: "Admin removed successfully." });
+		return res.json({ message: `${user.name}'s admin rights removed. User is now a normal user.` });
 	} catch (error) {
 		return res.status(500).json({ message: "Failed to remove admin.", error: error.message });
+	}
+};
+
+// DELETE /api/admin/users/:id
+export const deleteUser = async (req, res) => {
+	try {
+		const { id } = req.params;
+
+		if (req.user.id === id) {
+			return res.status(400).json({ message: "You cannot delete your own account." });
+		}
+
+		const user = await User.findById(id);
+
+		if (!user) {
+			return res.status(404).json({ message: "User not found." });
+		}
+
+		if (user.role === "superadmin") {
+			return res.status(403).json({ message: "Superadmin accounts cannot be deleted." });
+		}
+
+		// Delete user's room listings and associated swap requests
+		await Room.deleteMany({ owner: id });
+		await SwapRequest.deleteMany({ $or: [{ requester: id }, { targetUser: id }] });
+		await user.deleteOne();
+
+		return res.json({ message: `${user.name}'s account and data permanently deleted.` });
+	} catch (error) {
+		return res.status(500).json({ message: "Failed to delete user.", error: error.message });
 	}
 };
 

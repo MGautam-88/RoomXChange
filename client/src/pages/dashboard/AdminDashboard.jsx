@@ -511,9 +511,9 @@ export default function AdminDashboard({ isSuperAdmin = false }) {
 			{/* USERS & ROOMS DIRECTORY TAB */}
 			{activeTab === "users" && (
 				<section className="surface dashboard-panel">
-					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "16px" }}>
 						<h2>Registered Users & Rooms Directory</h2>
-						<div style={{ width: "300px" }}>
+						<div style={{ width: "340px", flexShrink: 0 }}>
 							<Input
 								placeholder="Search by name, roll, room code, role..."
 								value={userSearch}
