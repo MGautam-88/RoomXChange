@@ -14,9 +14,16 @@ const app = express();
 
 app.use(connectDBMiddleware);
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://roomxchange.me",
+  "https://www.roomxchange.me",
+  "https://room-x-change.vercel.app",
+];
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: allowedOrigins,
     credentials: true,
   })
 );
